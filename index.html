@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>visualizer — browser frame preview</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/controls.css">
+  <link rel="stylesheet" href="css/frame.css">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <header>
@@ -109,7 +112,6 @@
           <div class="frame-empty" id="frame-empty">
             <p>introduce una URL o sube una imagen</p>
           </div>
-          <iframe id="frame-iframe" hidden></iframe>
           <img id="frame-img" hidden alt="preview">
         </div>
       </div>
@@ -117,6 +119,6 @@
   </main>
 
   <canvas id="export-canvas" hidden></canvas>
-  <script src="script.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
