@@ -213,7 +213,7 @@ main {
   gap: 0.3rem;
 }
 
-.size-inputs input {
+.size-inputs input[type="number"] {
   width: 64px;
   padding: 0.3rem 0.4rem;
   border: 1px solid #ccc;
@@ -225,6 +225,32 @@ main {
 .times {
   font-size: 0.8rem;
   color: #999;
+}
+
+/* Multiplier */
+.multiplier-toggles {
+  display: flex;
+  gap: 0.15rem;
+  margin-left: 0.5rem;
+}
+
+.mult-btn {
+  padding: 0.25rem 0.45rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mult-btn:hover { border-color: #999; }
+
+.mult-btn.active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
 }
 
 /* Bottom row */
@@ -239,6 +265,18 @@ main {
   font-size: 0.8rem;
   cursor: pointer;
   min-width: auto !important;
+}
+
+.download-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.download-hint {
+  font-size: 0.7rem;
+  color: #999;
+  font-style: italic;
 }
 
 .action-btn {
@@ -316,12 +354,15 @@ main {
 .frame-controls {
   display: none;
   flex-shrink: 0;
+  gap: 0;
 }
 
-.frame-close {
-  font-size: 1.3rem;
-  font-weight: 900;
+.frame-close,
+.win-minimize,
+.win-maximize {
+  font-size: 1rem;
   line-height: 1;
+  display: none;
 }
 
 /* --- Frame body --- */
@@ -335,13 +376,12 @@ main {
 .frame-body img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
 }
 
 .frame-body iframe {
   display: block;
-  width: 100%;
-  height: 100%;
   border: none;
 }
 
@@ -356,7 +396,7 @@ main {
 }
 
 /* =============================================
-   STYLE 1: macOS minimal
+   STYLE 1: macOS
    ============================================= */
 
 .frame-container[data-style="macos"] {
@@ -379,159 +419,110 @@ main {
 }
 
 /* =============================================
-   STYLE 2: Safari
+   STYLE 2: Glass (Liquid Glass / Apple 2025)
    ============================================= */
 
-.frame-container[data-style="safari"] {
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #d4d4d4;
-  background: #fff;
-}
-
-.frame-container[data-style="safari"] .frame-titlebar {
-  background: #f6f6f6;
-  border-bottom: 1px solid #d4d4d4;
-  height: 36px;
-  padding: 0 10px;
-}
-
-.frame-container[data-style="safari"] .frame-dots .dot {
-  width: 11px;
-  height: 11px;
-}
-
-.frame-container[data-style="safari"] .frame-url {
-  background: #eaeaea;
-  padding: 3px 16px;
-  border-radius: 6px;
-  font-size: 0.7rem;
-  color: #555;
-  opacity: 1;
-}
-
-.frame-container[data-style="safari"] .frame-url::before {
-  content: "🔒 ";
-  font-size: 0.6rem;
-}
-
-/* =============================================
-   STYLE 3: Arc
-   ============================================= */
-
-.frame-container[data-style="arc"] {
+.frame-container[data-style="glass"] {
   border-radius: 14px;
   overflow: hidden;
-  border: 1px solid #e0ddf5;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06);
 }
 
-.frame-container[data-style="arc"] .frame-titlebar {
-  background: linear-gradient(135deg, #f0eeff 0%, #eef4ff 100%);
-  border-bottom: 1px solid #e0ddf5;
+.frame-container[data-style="glass"] .frame-titlebar {
+  background: rgba(245, 245, 247, 0.72);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.5);
   height: 40px;
-  padding: 0 14px;
 }
 
-.frame-container[data-style="arc"] .frame-dots .dot {
+.frame-container[data-style="glass"] .frame-dots .dot {
   width: 11px;
   height: 11px;
+  opacity: 0.85;
 }
 
-.frame-container[data-style="arc"] .frame-dots .dot.red { background: #ff6b7f; }
-.frame-container[data-style="arc"] .frame-dots .dot.yellow { background: #ffc14d; }
-.frame-container[data-style="arc"] .frame-dots .dot.green { background: #5fd97d; }
-
-.frame-container[data-style="arc"] .frame-url {
-  background: rgba(255, 255, 255, 0.6);
+.frame-container[data-style="glass"] .frame-url {
+  background: rgba(0, 0, 0, 0.04);
   padding: 3px 14px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 0.72rem;
-  color: #6b5ce7;
-  opacity: 1;
-  font-weight: 500;
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  opacity: 0.7;
+}
+
+.frame-container[data-style="glass"].with-shadow {
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.04))
+    drop-shadow(0 8px 32px rgba(0, 0, 0, 0.08))
+    drop-shadow(0 32px 64px rgba(0, 0, 0, 0.06));
 }
 
 /* =============================================
-   STYLE 4: Windows
+   STYLE 3: Windows (Edge/Chrome modern)
    ============================================= */
 
 .frame-container[data-style="windows"] {
-  border: 1px solid #ccc;
+  border: 1px solid #e0e0e0;
   background: #fff;
   overflow: hidden;
+  border-radius: 8px 8px 0 0;
 }
 
 .frame-container[data-style="windows"] .frame-titlebar {
-  background: #f0f0f0;
-  border-bottom: 1px solid #ddd;
-  height: 32px;
-  padding: 0 0 0 12px;
+  background: #f3f3f3;
+  border-bottom: 1px solid #e0e0e0;
+  height: 36px;
+  padding: 0 0 0 14px;
+  gap: 0;
 }
 
 .frame-container[data-style="windows"] .frame-dots { display: none; }
 
 .frame-container[data-style="windows"] .frame-url {
-  text-align: left;
-  font-size: 0.72rem;
-  opacity: 0.7;
+  background: #e9e9e9;
+  padding: 3px 14px;
+  border-radius: 16px;
+  font-size: 0.7rem;
+  opacity: 0.8;
+  margin: 0 8px;
 }
 
 .frame-container[data-style="windows"] .frame-controls {
   display: flex;
   height: 100%;
+  align-items: stretch;
 }
 
-.frame-container[data-style="windows"] .frame-controls .frame-close {
+.frame-container[data-style="windows"] .win-minimize,
+.frame-container[data-style="windows"] .win-maximize,
+.frame-container[data-style="windows"] .frame-close {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 46px;
-  height: 32px;
-  font-size: 1rem;
-  font-weight: 400;
+  height: 36px;
+  font-size: 0.85rem;
+  color: #555;
   cursor: default;
   transition: background 0.1s;
 }
 
-.frame-container[data-style="windows"] .frame-controls .frame-close:hover {
+.frame-container[data-style="windows"] .win-minimize:hover,
+.frame-container[data-style="windows"] .win-maximize:hover {
+  background: #e5e5e5;
+}
+
+.frame-container[data-style="windows"] .frame-close:hover {
   background: #e81123;
   color: #fff;
 }
 
 /* =============================================
-   STYLE 5: Terminal
-   ============================================= */
-
-.frame-container[data-style="terminal"] {
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #333;
-  background: #1e1e1e;
-}
-
-.frame-container[data-style="terminal"] .frame-titlebar {
-  background: #2d2d2d;
-  border-bottom: 1px solid #444;
-}
-
-.frame-container[data-style="terminal"] .frame-dots .dot.red { background: #ff5f57; opacity: 0.7; }
-.frame-container[data-style="terminal"] .frame-dots .dot.yellow { background: #febc2e; opacity: 0.7; }
-.frame-container[data-style="terminal"] .frame-dots .dot.green { background: #28c840; opacity: 0.7; }
-
-.frame-container[data-style="terminal"] .frame-url {
-  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-  font-size: 0.7rem;
-  color: #8ae08a;
-  opacity: 1;
-}
-
-.frame-container[data-style="terminal"] .frame-body {
-  background: #1e1e1e;
-}
-
-/* =============================================
-   STYLE 6: Pixel / Android
+   STYLE 4: Pixel / Chrome
    ============================================= */
 
 .frame-container[data-style="pixel"] {
@@ -565,116 +556,7 @@ main {
 }
 
 /* =============================================
-   STYLE 7: Brutalist / Neobrutalist
-   ============================================= */
-
-.frame-container[data-style="brutalist"] {
-  border: 4px solid #1a1a1a;
-  box-shadow: 6px 6px 0 #1a1a1a;
-  background: #fff;
-}
-
-.frame-container[data-style="brutalist"] .frame-titlebar {
-  background: #ff8c42;
-  border-bottom: 3px solid #1a1a1a;
-  padding: 0 0 0 12px;
-}
-
-.frame-container[data-style="brutalist"] .frame-dots .dot { display: none; }
-
-.frame-container[data-style="brutalist"] .frame-url {
-  font-weight: 700;
-  font-size: 0.8rem;
-  opacity: 1;
-  color: #1a1a1a;
-  text-align: left;
-}
-
-.frame-container[data-style="brutalist"] .frame-controls {
-  display: flex;
-  height: 100%;
-}
-
-.frame-container[data-style="brutalist"] .frame-controls .frame-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-left: 3px solid #1a1a1a;
-  font-weight: 900;
-  cursor: default;
-  background: #ffaa70;
-}
-
-.frame-container[data-style="brutalist"].with-shadow {
-  filter: none;
-  box-shadow: 6px 6px 0 #1a1a1a;
-}
-
-/* =============================================
-   STYLE 8: Retro / Win95
-   ============================================= */
-
-.frame-container[data-style="retro"] {
-  border: 2px solid #000;
-  border-top-color: #dfdfdf;
-  border-left-color: #dfdfdf;
-  background: #c0c0c0;
-  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #808080;
-}
-
-.frame-container[data-style="retro"] .frame-titlebar {
-  background: linear-gradient(90deg, #000080, #1084d0);
-  border-bottom: none;
-  height: 26px;
-  padding: 0 3px;
-  gap: 4px;
-}
-
-.frame-container[data-style="retro"] .frame-dots { display: none; }
-
-.frame-container[data-style="retro"] .frame-url {
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-align: left;
-  opacity: 1;
-}
-
-.frame-container[data-style="retro"] .frame-controls {
-  display: flex;
-  gap: 2px;
-}
-
-.frame-container[data-style="retro"] .frame-controls .frame-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: #c0c0c0;
-  border: 1px solid #000;
-  border-top-color: #fff;
-  border-left-color: #fff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  cursor: default;
-  box-shadow: inset -1px -1px 0 #808080;
-}
-
-.frame-container[data-style="retro"] .frame-body {
-  border: 2px solid #808080;
-  border-top-color: #000;
-  border-left-color: #000;
-  border-right-color: #dfdfdf;
-  border-bottom-color: #dfdfdf;
-  margin: 3px;
-  background: #fff;
-}
-
-/* =============================================
-   STYLE 9: Dots (solo puntos)
+   STYLE 5: Dots
    ============================================= */
 
 .frame-container[data-style="dots"] {
@@ -699,56 +581,146 @@ main {
 }
 
 /* =============================================
-   STYLE 10: Dots + nombre
+   STYLE 6: GX (Opera GX / Gaming Neon)
    ============================================= */
 
-.frame-container[data-style="dots-name"] {
+.frame-container[data-style="gx"] {
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #d0d0d0;
+  border: 1px solid rgba(224, 25, 58, 0.5);
+  background: #0d0d12;
+  box-shadow: 0 0 0 1px rgba(224, 25, 58, 0.1);
+}
+
+.frame-container[data-style="gx"] .frame-titlebar {
+  background: radial-gradient(ellipse at 30% 100%, rgba(224, 25, 58, 0.2) 0%, #111118 70%);
+  border-bottom: 1px solid rgba(224, 25, 58, 0.3);
+  height: 38px;
+}
+
+.frame-container[data-style="gx"] .frame-dots .dot {
+  width: 10px;
+  height: 10px;
+  opacity: 0.6;
+}
+
+.frame-container[data-style="gx"] .frame-dots .dot.red { background: #e0193a; }
+.frame-container[data-style="gx"] .frame-dots .dot.yellow { background: #e0193a; opacity: 0.4; }
+.frame-container[data-style="gx"] .frame-dots .dot.green { background: #e0193a; opacity: 0.2; }
+
+.frame-container[data-style="gx"] .frame-url {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(224, 25, 58, 0.3);
+  border-radius: 4px;
+  padding: 3px 14px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(224, 25, 58, 0.15);
+}
+
+.frame-container[data-style="gx"] .frame-body {
+  background: #0d0d12;
+}
+
+.frame-container[data-style="gx"] .frame-empty {
+  color: rgba(224, 25, 58, 0.4);
+}
+
+.frame-container[data-style="gx"].with-shadow {
+  filter:
+    drop-shadow(0 0 40px rgba(224, 25, 58, 0.08))
+    drop-shadow(0 24px 60px rgba(0, 0, 0, 0.6));
+}
+
+/* =============================================
+   STYLE 7: Neu (Neubrutalism color-block)
+   ============================================= */
+
+.frame-container[data-style="neu"] {
+  border: 2.5px solid #000;
+  border-radius: 4px;
+  box-shadow: 5px 5px 0 0 #000;
   background: #fff;
+  overflow: hidden;
 }
 
-.frame-container[data-style="dots-name"] .frame-titlebar {
-  background: #f0f0f0;
-  border-bottom: 1px solid #e0e0e0;
+.frame-container[data-style="neu"] .frame-titlebar {
+  background: #ffe566;
+  border-bottom: 2.5px solid #000;
+  height: 38px;
+  padding: 0 12px;
 }
 
-.frame-container[data-style="dots-name"] .frame-url {
-  font-weight: 600;
+.frame-container[data-style="neu"] .frame-dots .dot {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #000;
+}
+
+.frame-container[data-style="neu"] .frame-dots .dot.red { background: #ff6b6b; }
+.frame-container[data-style="neu"] .frame-dots .dot.yellow { background: #ffd93d; }
+.frame-container[data-style="neu"] .frame-dots .dot.green { background: #6bcb77; }
+
+.frame-container[data-style="neu"] .frame-url {
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 0;
+  padding: 2px 12px;
+  font-size: 0.75rem;
+  font-family: "SF Mono", "Consolas", monospace;
+  opacity: 1;
+  color: #000;
+}
+
+.frame-container[data-style="neu"].with-shadow {
+  filter: none;
+  box-shadow: 5px 5px 0 0 #000;
+}
+
+/* =============================================
+   STYLE 8: Dia (AI-Minimalist / Editorial)
+   ============================================= */
+
+.frame-container[data-style="dia"] {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+}
+
+.frame-container[data-style="dia"] .frame-titlebar {
+  background: #fff;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+  height: 42px;
+  padding: 0 16px;
+}
+
+.frame-container[data-style="dia"] .frame-dots .dot {
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.frame-container[data-style="dia"] .frame-titlebar:hover .frame-dots .dot {
+  opacity: 1;
+}
+
+.frame-container[data-style="dia"] .frame-url {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 20px;
+  padding: 4px 18px;
+  font-family: "Georgia", "Spectral", serif;
   font-size: 0.78rem;
-  opacity: 0.7;
+  color: #333;
+  opacity: 1;
 }
 
-/* =============================================
-   STYLE 11: Flat
-   ============================================= */
-
-.frame-container[data-style="flat"] {
-  border-radius: 8px;
-  overflow: hidden;
-  background: #1a1a1a;
-  padding: 8px 8px 8px 8px;
-}
-
-.frame-container[data-style="flat"] .frame-titlebar { display: none; }
-
-.frame-container[data-style="flat"] .frame-body {
-  border-radius: 2px;
-}
-
-/* =============================================
-   STYLE 12: Outline
-   ============================================= */
-
-.frame-container[data-style="outline"] {
-  border-radius: 10px;
-  border: 2px solid #1a1a1a;
-  overflow: hidden;
-}
-
-.frame-container[data-style="outline"] .frame-titlebar { display: none; }
-
-.frame-container[data-style="outline"] .frame-body {
-  background: transparent;
+.frame-container[data-style="dia"].with-shadow {
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.04))
+    drop-shadow(0 8px 32px rgba(0, 0, 0, 0.08))
+    drop-shadow(0 32px 64px rgba(0, 0, 0, 0.06));
 }

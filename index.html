@@ -19,17 +19,13 @@
         <label>estilo</label>
         <div class="style-toggles">
           <button class="style-btn active" data-style="macos">macOS</button>
-          <button class="style-btn" data-style="safari">Safari</button>
-          <button class="style-btn" data-style="arc">Arc</button>
+          <button class="style-btn" data-style="glass">Glass</button>
           <button class="style-btn" data-style="windows">Windows</button>
-          <button class="style-btn" data-style="terminal">Terminal</button>
           <button class="style-btn" data-style="pixel">Pixel</button>
-          <button class="style-btn" data-style="brutalist">Brutalist</button>
-          <button class="style-btn" data-style="retro">Retro</button>
           <button class="style-btn" data-style="dots">Dots</button>
-          <button class="style-btn" data-style="dots-name">Dots+</button>
-          <button class="style-btn" data-style="flat">Flat</button>
-          <button class="style-btn" data-style="outline">Outline</button>
+          <button class="style-btn" data-style="gx">GX</button>
+          <button class="style-btn" data-style="neu">Neu</button>
+          <button class="style-btn" data-style="dia">Dia</button>
         </div>
       </div>
 
@@ -71,6 +67,11 @@
           <div class="size-inputs">
             <input type="number" id="dim-w" value="1440" min="200" max="3840"> <span class="times">×</span>
             <input type="number" id="dim-h" value="900" min="200" max="3840">
+            <div class="multiplier-toggles">
+              <button class="mult-btn active" data-mult="1">1x</button>
+              <button class="mult-btn" data-mult="2">2x</button>
+              <button class="mult-btn" data-mult="3">3x</button>
+            </div>
           </div>
         </div>
       </div>
@@ -81,7 +82,10 @@
           <input type="checkbox" id="shadow-toggle" checked>
           sombra macOS
         </label>
-        <button id="download-btn" class="action-btn" disabled>descargar PNG</button>
+        <div class="download-area">
+          <span class="download-hint" id="download-hint" hidden>usa ⌘⇧4 para capturar el frame</span>
+          <button id="download-btn" class="action-btn" disabled>descargar PNG</button>
+        </div>
       </div>
     </section>
 
@@ -96,6 +100,8 @@
           </div>
           <span class="frame-url" id="frame-url"></span>
           <div class="frame-controls" id="frame-controls">
+            <span class="win-minimize">&#x2015;</span>
+            <span class="win-maximize">☐</span>
             <span class="frame-close">&times;</span>
           </div>
         </div>

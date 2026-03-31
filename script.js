@@ -15,16 +15,19 @@ const fileInput = $("#file-input");
 const fileName = $("#file-name");
 const shadowToggle = $("#shadow-toggle");
 const downloadBtn = $("#download-btn");
+const downloadHint = $("#download-hint");
 const dimW = $("#dim-w");
 const dimH = $("#dim-h");
 const canvas = $("#export-canvas");
 const ctx = canvas.getContext("2d");
 
 let currentStyle = "macos";
-let currentSource = "url"; // "url" | "image"
+let currentSource = "url";
 let loadedImage = null;
 let currentW = 1440;
 let currentH = 900;
+let currentMult = 1;
+let isIframeMode = false;
 
 // =============================================
 //  Style toggles
@@ -41,7 +44,7 @@ $$(".style-btn").forEach((btn) => {
 
 function applyStyle() {
   frameContainer.dataset.style = currentStyle;
-  frameUrl.textContent = urlInput.value || "";
+  frameUrl.textContent = urlInput.value.replace(/^https?:\/\//, "") || "";
   applyShadow();
 }
 
@@ -55,10 +58,8 @@ $$(".source-tab").forEach((tab) => {
     tab.classList.add("active");
     currentSource = tab.dataset.source;
 
-    const srcUrl = $("#source-url");
-    const srcImg = $("#source-image");
-    srcUrl.hidden = currentSource !== "url";
-    srcImg.hidden = currentSource !== "image";
+    $("#source-url").hidden = currentSource !== "url";
+    $("#source-image").hidden = currentSource !== "image";
   });
 });
 
@@ -77,19 +78,54 @@ function loadURL() {
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
   urlInput.value = url;
 
-  // Show iframe, hide image and empty
-  loadedImage = null;
-  frameImg.hidden = true;
-  frameEmpty.hidden = true;
-  frameIframe.hidden = false;
-  frameIframe.src = url;
+  // Build thum.io screenshot URL
+  const thumbUrl = `https://image.thum.io/get/viewportWidth/${currentW}/crop/${currentH}/width/${currentW}/png/${url}`;
 
+  loadedImage = null;
+  isIframeMode = false;
+  frameIframe.hidden = true;
+  frameEmpty.hidden = true;
+  frameImg.hidden = false;
+
+  // Show loading state
   frameUrl.textContent = url.replace(/^https?:\/\//, "");
+  downloadBtn.disabled = true;
+  downloadHint.textContent = "capturando...";
+  downloadHint.hidden = false;
+
+  // Load screenshot as image
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    loadedImage = img;
+    frameImg.src = img.src;
+    downloadBtn.disabled = false;
+    downloadHint.hidden = true;
+    applyDimensions();
+    applyShadow();
+  };
+  img.onerror = () => {
+    // CORS failed or image failed — try without crossOrigin for display only
+    const img2 = new Image();
+    img2.onload = () => {
+      loadedImage = null; // can't use in canvas
+      frameImg.src = img2.src;
+      downloadBtn.disabled = true;
+      downloadHint.textContent = "usa ⌘⇧4 para capturar el frame";
+      downloadHint.hidden = false;
+      applyDimensions();
+      applyShadow();
+    };
+    img2.onerror = () => {
+      downloadHint.textContent = "error al capturar — prueba otra URL";
+      downloadHint.hidden = false;
+    };
+    img2.src = thumbUrl;
+  };
+  img.src = thumbUrl;
+
   applyDimensions();
   applyShadow();
-
-  // Download only works with images
-  downloadBtn.disabled = true;
 }
 
 // =============================================
@@ -124,16 +160,17 @@ function loadImage(file) {
     const img = new Image();
     img.onload = () => {
       loadedImage = img;
+      isIframeMode = false;
       frameImg.src = e.target.result;
-
-      // Show image, hide iframe and empty
       frameImg.hidden = false;
       frameIframe.hidden = true;
       frameEmpty.hidden = true;
 
       frameUrl.textContent = file.name;
       fileName.textContent = file.name;
+
       downloadBtn.disabled = false;
+      downloadHint.hidden = true;
       applyDimensions();
       applyShadow();
     };
@@ -149,7 +186,7 @@ function loadImage(file) {
 shadowToggle.addEventListener("change", applyShadow);
 
 function applyShadow() {
-  if (currentStyle === "brutalist") {
+  if (currentStyle === "neu") {
     frameContainer.classList.remove("with-shadow");
   } else {
     frameContainer.classList.toggle("with-shadow", shadowToggle.checked);
@@ -185,7 +222,6 @@ dimH.addEventListener("change", () => {
 });
 
 function applyDimensions() {
-  // Scale to fit within preview area (max ~900px wide)
   const maxPreviewW = Math.min(900, window.innerWidth - 80);
   const scale = Math.min(1, maxPreviewW / currentW);
   const displayW = Math.round(currentW * scale);
@@ -194,7 +230,6 @@ function applyDimensions() {
   frameBody.style.width = displayW + "px";
   frameBody.style.height = displayH + "px";
 
-  // For iframe, set internal dimensions via transform scaling
   if (!frameIframe.hidden) {
     frameIframe.style.width = currentW + "px";
     frameIframe.style.height = currentH + "px";
@@ -203,8 +238,19 @@ function applyDimensions() {
   }
 }
 
-// Initial dimensions
 applyDimensions();
+
+// =============================================
+//  Multiplier
+// =============================================
+
+$$(".mult-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    $$(".mult-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentMult = parseInt(btn.dataset.mult);
+  });
+});
 
 // =============================================
 //  URL input → live update bar text
@@ -215,7 +261,7 @@ urlInput.addEventListener("input", () => {
 });
 
 // =============================================
-//  Download PNG (only with uploaded image)
+//  Download PNG
 // =============================================
 
 downloadBtn.addEventListener("click", exportPNG);
@@ -223,25 +269,27 @@ downloadBtn.addEventListener("click", exportPNG);
 function exportPNG() {
   if (!loadedImage) return;
 
+  const scale = currentMult;
   const imgW = loadedImage.naturalWidth;
   const imgH = loadedImage.naturalHeight;
   const text = urlInput.value.replace(/^https?:\/\//, "") || "";
 
   const cfg = getFrameConfig(currentStyle, imgW, imgH);
-  const shadow = shadowToggle.checked && currentStyle !== "brutalist";
+  const shadow = shadowToggle.checked && currentStyle !== "neu";
 
-  const shadowPad = shadow ? 80 : 0;
-  const extraOffset = cfg.boxShadow ? 6 : 0;
+  const shadowPad = shadow ? 80 * scale : 0;
+  const extraOffset = cfg.boxShadow ? 6 * scale : 0;
 
-  const totalW = cfg.totalW + shadowPad * 2 + extraOffset;
-  const totalH = cfg.totalH + shadowPad * 2 + extraOffset;
+  const totalW = cfg.totalW * scale + shadowPad * 2 + extraOffset;
+  const totalH = cfg.totalH * scale + shadowPad * 2 + extraOffset;
 
   canvas.width = totalW;
   canvas.height = totalH;
   ctx.clearRect(0, 0, totalW, totalH);
+  ctx.scale(scale, scale);
 
-  const ox = shadowPad;
-  const oy = shadowPad;
+  const ox = shadowPad / scale;
+  const oy = shadowPad / scale;
 
   // macOS shadow
   if (shadow) {
@@ -250,7 +298,7 @@ function exportPNG() {
     ctx.shadowBlur = 70;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 22;
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = cfg.bodyBg || "#fff";
     if (cfg.radius) {
       roundRect(ctx, ox, oy, cfg.totalW, cfg.totalH, cfg.radius);
     } else {
@@ -261,8 +309,10 @@ function exportPNG() {
 
   drawFrame(ctx, ox, oy, cfg, loadedImage, text);
 
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // reset scale
+
   const link = document.createElement("a");
-  link.download = `frame-${currentStyle}.png`;
+  link.download = `frame-${currentStyle}-${currentMult}x.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
 }
@@ -281,32 +331,18 @@ function getFrameConfig(style, imgW, imgH) {
       barBg: "#e8e8e8", borderColor: "#d0d0d0",
       urlStyle: "pill",
     },
-    safari: {
-      ...base,
-      barH: 36, totalW: imgW, totalH: imgH + 36, radius: 10,
-      barBg: "#f6f6f6", borderColor: "#d4d4d4", dotSize: 11,
-      urlStyle: "safari-pill",
-    },
-    arc: {
+    glass: {
       ...base,
       barH: 40, totalW: imgW, totalH: imgH + 40, radius: 14,
-      barBg: "#f0eeff", borderColor: "#e0ddf5", dotSize: 11,
-      urlStyle: "arc-pill",
-      dotColors: ["#ff6b7f", "#ffc14d", "#5fd97d"],
+      barBg: "rgba(245,245,247,0.85)", borderColor: "rgba(0,0,0,0.1)",
+      dotSize: 11, urlStyle: "glass-pill",
     },
     windows: {
       ...base,
-      barH: 32, totalW: imgW, totalH: imgH + 32, radius: 0,
-      barBg: "#f0f0f0", borderColor: "#ccc",
-      dots: false, urlStyle: "left",
+      barH: 36, totalW: imgW, totalH: imgH + 36, radius: 8,
+      barBg: "#f3f3f3", borderColor: "#e0e0e0",
+      dots: false, urlStyle: "win-pill",
       showClose: true, closeStyle: "windows",
-    },
-    terminal: {
-      ...base,
-      barH: 38, totalW: imgW, totalH: imgH + 38,
-      barBg: "#2d2d2d", borderColor: "#333", bodyBg: "#1e1e1e",
-      urlStyle: "terminal",
-      dotColors: ["rgba(255,95,87,0.7)", "rgba(254,188,46,0.7)", "rgba(40,200,64,0.7)"],
     },
     pixel: {
       ...base,
@@ -314,39 +350,30 @@ function getFrameConfig(style, imgW, imgH) {
       barBg: "#ffffff", borderColor: "#e0e0e0",
       dots: false, urlStyle: "pixel-pill",
     },
-    brutalist: {
-      barH: 38, totalW: imgW + 8, totalH: imgH + 38 + 7, radius: 0,
-      barBg: "#ff8c42", borderColor: "#1a1a1a", borderW: 4,
-      dots: false, showUrl: true, urlStyle: "bold",
-      showClose: true, closeStyle: "brutalist", boxShadow: true,
-    },
-    retro: {
-      barH: 26, totalW: imgW + 6, totalH: imgH + 26 + 6, radius: 0,
-      barBg: "gradient-retro", borderColor: "#000", borderW: 2,
-      dots: false, showUrl: true, urlStyle: "retro",
-      showClose: true, closeStyle: "retro", retroStyle: true,
-    },
     dots: {
       ...base,
       barH: 32, totalW: imgW, totalH: imgH + 32,
       barBg: "#f0f0f0", borderColor: "#d0d0d0", dotSize: 10,
       showUrl: false,
     },
-    "dots-name": {
+    gx: {
       ...base,
-      barH: 38, totalW: imgW, totalH: imgH + 38,
-      barBg: "#f0f0f0", borderColor: "#d0d0d0",
-      urlStyle: "center",
+      barH: 38, totalW: imgW, totalH: imgH + 38, radius: 8,
+      barBg: "#111118", borderColor: "rgba(224,25,58,0.5)", bodyBg: "#0d0d12",
+      dotSize: 10, urlStyle: "gx",
+      dotColors: ["rgba(224,25,58,0.8)", "rgba(224,25,58,0.4)", "rgba(224,25,58,0.2)"],
     },
-    flat: {
-      barH: 0, totalW: imgW + 16, totalH: imgH + 16, radius: 8,
-      barBg: "none", borderColor: "none", borderW: 0,
-      dots: false, showUrl: false, padding: 8, flatBg: "#1a1a1a",
+    neu: {
+      barH: 38, totalW: imgW + 5, totalH: imgH + 38 + 5, radius: 4,
+      barBg: "#ffe566", borderColor: "#000", borderW: 2.5,
+      dots: true, dotSize: 13, showUrl: true, urlStyle: "neu",
+      boxShadow: true, neuDots: true,
     },
-    outline: {
-      barH: 0, totalW: imgW, totalH: imgH, radius: 10,
-      barBg: "none", borderColor: "#1a1a1a", borderW: 2,
-      dots: false, showUrl: false,
+    dia: {
+      ...base,
+      barH: 42, totalW: imgW, totalH: imgH + 42, radius: 12,
+      barBg: "#ffffff", borderColor: "rgba(0,0,0,0.12)", borderW: 0.5,
+      dotSize: 10, dotAlpha: 0, urlStyle: "dia",
     },
   };
   return configs[style];
@@ -363,58 +390,10 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
 
   ctx.save();
 
-  // --- Flat style: just padding + image ---
-  if (cfg.flatBg) {
-    if (radius) {
-      roundRectPath(ctx, ox, oy, totalW, totalH, radius);
-      ctx.clip();
-    }
-    ctx.fillStyle = cfg.flatBg;
-    ctx.fillRect(ox, oy, totalW, totalH);
-    const p = cfg.padding || 0;
-    ctx.drawImage(img, ox + p, oy + p, imgW, imgH);
-    ctx.restore();
-    return;
-  }
-
-  // --- Outline style: just border + image ---
-  if (barH === 0 && !cfg.flatBg) {
-    if (radius) {
-      roundRectPath(ctx, ox, oy, totalW, totalH, radius);
-      ctx.clip();
-    }
-    ctx.drawImage(img, ox, oy, imgW, imgH);
-    if (borderW) {
-      ctx.restore();
-      ctx.save();
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = borderW;
-      if (radius) {
-        roundRectPath(ctx, ox + 1, oy + 1, totalW - 2, totalH - 2, radius);
-        ctx.stroke();
-      } else {
-        ctx.strokeRect(ox, oy, totalW, totalH);
-      }
-    }
-    ctx.restore();
-    return;
-  }
-
-  // --- Brutalist box shadow ---
+  // Neu box shadow
   if (cfg.boxShadow) {
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(ox + 6, oy + 6, totalW, totalH);
-  }
-
-  // --- Retro bevel ---
-  if (cfg.retroStyle) {
-    // Outer bevel
-    ctx.fillStyle = "#dfdfdf";
-    ctx.fillRect(ox, oy, totalW, totalH);
-    ctx.fillStyle = "#808080";
-    ctx.fillRect(ox + 1, oy + 1, totalW - 1, totalH - 1);
-    ctx.fillStyle = "#c0c0c0";
-    ctx.fillRect(ox + 2, oy + 2, totalW - 4, totalH - 4);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(ox + 5, oy + 5, totalW, totalH);
   }
 
   // Clip rounded corners
@@ -424,7 +403,7 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
   }
 
   // Background
-  ctx.fillStyle = cfg.retroStyle ? "#c0c0c0" : "#fff";
+  ctx.fillStyle = cfg.bodyBg || "#fff";
   ctx.fillRect(ox, oy, totalW, totalH);
 
   // --- Titlebar ---
@@ -433,24 +412,13 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
   const barY = oy + bw;
   const barW = totalW - bw * 2;
 
-  if (cfg.retroStyle) {
-    // Retro gradient bar
-    const grad = ctx.createLinearGradient(barX, barY, barX + barW, barY);
-    grad.addColorStop(0, "#000080");
-    grad.addColorStop(1, "#1084d0");
-    ctx.fillStyle = grad;
-    ctx.fillRect(barX + 3, barY + 3, barW - 6, barH);
-  } else {
-    ctx.fillStyle = barBg;
-    ctx.fillRect(barX, barY, barW, barH);
-  }
+  ctx.fillStyle = barBg;
+  ctx.fillRect(barX, barY, barW, barH);
 
   // Bar bottom border
-  if (!cfg.retroStyle) {
-    ctx.fillStyle = borderColor;
-    const bbH = cfg.boxShadow ? 3 : 1;
-    ctx.fillRect(barX, barY + barH - bbH, barW, bbH);
-  }
+  ctx.fillStyle = borderColor;
+  const bbH = cfg.boxShadow ? 2.5 : 1;
+  ctx.fillRect(barX, barY + barH - bbH, barW, bbH);
 
   // --- Dots ---
   if (cfg.dots) {
@@ -458,11 +426,24 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
     const dotY = barY + barH / 2;
     const dotX0 = barX + 14;
     const colors = cfg.dotColors || ["#ff5f57", "#febc2e", "#28c840"];
+
     colors.forEach((c, i) => {
+      const cx = dotX0 + i * (dotR * 2 + 6);
+
+      // Neu: black border on dots
+      if (cfg.neuDots) {
+        ctx.beginPath();
+        ctx.arc(cx, dotY, dotR + 1, 0, Math.PI * 2);
+        ctx.fillStyle = "#000";
+        ctx.fill();
+      }
+
       ctx.beginPath();
-      ctx.arc(dotX0 + i * (dotR * 2 + 6), dotY, dotR, 0, Math.PI * 2);
+      ctx.arc(cx, dotY, dotR, 0, Math.PI * 2);
       ctx.fillStyle = c;
+      ctx.globalAlpha = cfg.dotAlpha !== undefined ? cfg.dotAlpha : 1;
       ctx.fill();
+      ctx.globalAlpha = 1;
     });
   }
 
@@ -484,26 +465,29 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
         ctx.fillText(text, centerX, textY);
         break;
       }
-      case "safari-pill": {
-        ctx.font = "11px -apple-system, sans-serif";
-        const label = "🔒 " + text;
-        const tw = ctx.measureText(label).width;
-        const pw = tw + 28;
-        ctx.fillStyle = "#eaeaea";
-        roundRect(ctx, centerX - pw / 2, textY - 10, pw, 20, 6);
-        ctx.fillStyle = "#555";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(label, centerX, textY);
-        break;
-      }
-      case "arc-pill": {
-        ctx.font = "500 11px -apple-system, sans-serif";
+      case "glass-pill": {
+        ctx.font = "12px -apple-system, sans-serif";
         const tw = ctx.measureText(text).width;
         const pw = tw + 28;
-        ctx.fillStyle = "rgba(255,255,255,0.6)";
-        roundRect(ctx, centerX - pw / 2, textY - 10, pw, 20, 8);
-        ctx.fillStyle = "#6b5ce7";
+        ctx.fillStyle = "rgba(0,0,0,0.04)";
+        roundRect(ctx, centerX - pw / 2, textY - 10, pw, 20, 6);
+        ctx.strokeStyle = "rgba(0,0,0,0.06)";
+        ctx.lineWidth = 0.5;
+        roundRectPath(ctx, centerX - pw / 2, textY - 10, pw, 20, 6);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, centerX, textY);
+        break;
+      }
+      case "win-pill": {
+        ctx.font = "11px -apple-system, sans-serif";
+        const tw = ctx.measureText(text).width;
+        const pw = tw + 28;
+        ctx.fillStyle = "#e9e9e9";
+        roundRect(ctx, centerX - pw / 2, textY - 10, pw, 20, 10);
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(text, centerX, textY);
@@ -522,110 +506,85 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
         ctx.fillText(label, centerX, textY);
         break;
       }
-      case "terminal": {
-        ctx.font = '11px "SF Mono", "Consolas", monospace';
-        ctx.fillStyle = "#8ae08a";
+      case "gx": {
+        ctx.font = "11px -apple-system, sans-serif";
+        const tw = ctx.measureText(text).width;
+        const pw = tw + 28;
+        ctx.fillStyle = "rgba(255,255,255,0.04)";
+        roundRect(ctx, centerX - pw / 2, textY - 10, pw, 20, 4);
+        ctx.strokeStyle = "rgba(224,25,58,0.3)";
+        ctx.lineWidth = 1;
+        roundRectPath(ctx, centerX - pw / 2, textY - 10, pw, 20, 4);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(text, centerX, textY);
         break;
       }
-      case "bold": {
-        ctx.font = "bold 13px -apple-system, sans-serif";
-        ctx.fillStyle = "#1a1a1a";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, barX + 14, textY);
-        break;
-      }
-      case "left": {
-        ctx.font = "12px -apple-system, sans-serif";
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, barX + 12, textY);
-        break;
-      }
-      case "retro": {
-        ctx.font = "bold 11px -apple-system, sans-serif";
+      case "neu": {
+        ctx.font = '12px "SF Mono", "Consolas", monospace';
+        const tw = ctx.measureText(text).width;
+        const pw = tw + 24;
         ctx.fillStyle = "#fff";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, barX + 8, barY + 3 + barH / 2);
-        break;
-      }
-      default: {
-        ctx.font = "600 12px -apple-system, sans-serif";
-        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(centerX - pw / 2, textY - 10, pw, 20);
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(centerX - pw / 2, textY - 10, pw, 20);
+        ctx.fillStyle = "#000";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(text, centerX, textY);
+        break;
+      }
+      case "dia": {
+        ctx.font = '13px "Georgia", serif';
+        const tw = ctx.measureText(text).width;
+        const pw = tw + 36;
+        ctx.fillStyle = "rgba(0,0,0,0.03)";
+        roundRect(ctx, centerX - pw / 2, textY - 11, pw, 22, 11);
+        ctx.strokeStyle = "rgba(0,0,0,0.06)";
+        ctx.lineWidth = 1;
+        roundRectPath(ctx, centerX - pw / 2, textY - 11, pw, 22, 11);
+        ctx.stroke();
+        ctx.fillStyle = "#333";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, centerX, textY);
+        break;
       }
     }
   }
 
-  // --- Close buttons ---
-  if (cfg.showClose) {
-    const bbH = cfg.boxShadow ? 3 : 1;
-
-    if (cfg.closeStyle === "brutalist") {
-      const closeW = 38;
-      const closeX = barX + barW - closeW;
-      ctx.fillStyle = "#1a1a1a";
-      ctx.fillRect(closeX, barY, 3, barH);
-      ctx.fillStyle = "#ffaa70";
-      ctx.fillRect(closeX + 3, barY, closeW - 3, barH - bbH);
-      ctx.font = "bold 18px -apple-system, sans-serif";
-      ctx.fillStyle = "#1a1a1a";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("×", closeX + closeW / 2 + 1, barY + barH / 2);
-    } else if (cfg.closeStyle === "windows") {
-      const closeW = 46;
-      const closeX = barX + barW - closeW;
-      ctx.fillStyle = "#f0f0f0";
-      ctx.fillRect(closeX, barY, closeW, barH);
-      ctx.font = "14px -apple-system, sans-serif";
-      ctx.fillStyle = "#333";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("×", closeX + closeW / 2, barY + barH / 2);
-    } else if (cfg.closeStyle === "retro") {
-      const s = 16;
-      const cx = barX + barW - s - 8;
-      const cy = barY + 3 + (barH - s) / 2;
-      ctx.fillStyle = "#c0c0c0";
-      ctx.fillRect(cx, cy, s, s);
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cx, cy, s, s);
-      // highlight
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(cx, cy, 1, s);
-      ctx.fillRect(cx, cy, s, 1);
-      ctx.font = "bold 10px -apple-system, sans-serif";
-      ctx.fillStyle = "#000";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("×", cx + s / 2, cy + s / 2);
-    }
+  // --- Close buttons (Windows) ---
+  if (cfg.showClose && cfg.closeStyle === "windows") {
+    const btnW = 46;
+    const btns = 3;
+    const startX = barX + barW - btnW * btns;
+    // Minimize
+    ctx.fillStyle = "#f3f3f3";
+    ctx.fillRect(startX, barY, btnW, barH - bbH);
+    ctx.font = "14px -apple-system, sans-serif";
+    ctx.fillStyle = "#666";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("—", startX + btnW / 2, barY + barH / 2);
+    // Maximize
+    ctx.fillStyle = "#f3f3f3";
+    ctx.fillRect(startX + btnW, barY, btnW, barH - bbH);
+    ctx.fillStyle = "#666";
+    ctx.fillText("☐", startX + btnW + btnW / 2, barY + barH / 2);
+    // Close
+    ctx.fillStyle = "#f3f3f3";
+    ctx.fillRect(startX + btnW * 2, barY, btnW, barH - bbH);
+    ctx.fillStyle = "#666";
+    ctx.fillText("×", startX + btnW * 2 + btnW / 2, barY + barH / 2);
   }
 
   // --- Image ---
-  if (cfg.retroStyle) {
-    const m = 3;
-    const imgX = ox + m + 1;
-    const imgY = barY + 3 + barH + 1;
-    ctx.drawImage(img, imgX, imgY, imgW, imgH);
-    // Inset border
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(imgX - 1, imgY - 1, imgW + 2, imgH + 2);
-  } else {
-    const imgX = ox + (cfg.boxShadow ? borderW : 0);
-    const imgY = barY + barH;
-    ctx.drawImage(img, imgX, imgY, imgW, imgH);
-  }
+  const imgX = ox + (cfg.boxShadow ? borderW : 0);
+  const imgY = barY + barH;
+  ctx.drawImage(img, imgX, imgY, imgW, imgH);
 
   // --- Outer border ---
   if (cfg.boxShadow) {
@@ -634,7 +593,7 @@ function drawFrame(ctx, ox, oy, cfg, img, text) {
     ctx.strokeStyle = borderColor;
     ctx.lineWidth = borderW;
     ctx.strokeRect(ox + borderW / 2, oy + borderW / 2, totalW - borderW, totalH - borderW);
-  } else if (borderW && !cfg.retroStyle) {
+  } else if (borderW) {
     ctx.restore();
     ctx.save();
     ctx.strokeStyle = borderColor;
