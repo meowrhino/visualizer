@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>visualizer — browser frame preview</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>visualizer</h1>
+    <p class="subtitle">preview browser frames for screenshots</p>
+  </header>
+
+  <main>
+    <section class="controls">
+      <!-- Estilos -->
+      <div class="control-row">
+        <label>estilo</label>
+        <div class="style-toggles">
+          <button class="style-btn active" data-style="macos">macOS</button>
+          <button class="style-btn" data-style="safari">Safari</button>
+          <button class="style-btn" data-style="arc">Arc</button>
+          <button class="style-btn" data-style="windows">Windows</button>
+          <button class="style-btn" data-style="terminal">Terminal</button>
+          <button class="style-btn" data-style="pixel">Pixel</button>
+          <button class="style-btn" data-style="brutalist">Brutalist</button>
+          <button class="style-btn" data-style="retro">Retro</button>
+          <button class="style-btn" data-style="dots">Dots</button>
+          <button class="style-btn" data-style="dots-name">Dots+</button>
+          <button class="style-btn" data-style="flat">Flat</button>
+          <button class="style-btn" data-style="outline">Outline</button>
+        </div>
+      </div>
+
+      <!-- Fuente: URL o imagen -->
+      <div class="control-row">
+        <label>fuente</label>
+        <div class="source-controls">
+          <div class="source-tabs">
+            <button class="source-tab active" data-source="url">URL</button>
+            <button class="source-tab" data-source="image">imagen</button>
+          </div>
+          <div class="source-url" id="source-url">
+            <input type="url" id="url-input" placeholder="https://ejemplo.com" value="">
+            <button id="load-url-btn" class="action-btn-sm">cargar</button>
+          </div>
+          <div class="source-image" id="source-image" hidden>
+            <div class="drop-zone-inline" id="drop-zone">
+              <span>+ arrastra imagen o click</span>
+              <input type="file" id="file-input" accept="image/*" hidden>
+            </div>
+            <span class="file-name" id="file-name"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Proporciones / Dimensiones -->
+      <div class="control-row">
+        <label>tamaño</label>
+        <div class="size-controls">
+          <div class="ratio-toggles">
+            <button class="ratio-btn active" data-w="1440" data-h="900">16:10</button>
+            <button class="ratio-btn" data-w="1920" data-h="1080">16:9</button>
+            <button class="ratio-btn" data-w="1440" data-h="960">3:2</button>
+            <button class="ratio-btn" data-w="1024" data-h="768">4:3</button>
+            <button class="ratio-btn" data-w="768" data-h="1024">3:4</button>
+            <button class="ratio-btn" data-w="390" data-h="844">iPhone</button>
+            <button class="ratio-btn" data-w="360" data-h="640">9:16</button>
+          </div>
+          <div class="size-inputs">
+            <input type="number" id="dim-w" value="1440" min="200" max="3840"> <span class="times">×</span>
+            <input type="number" id="dim-h" value="900" min="200" max="3840">
+          </div>
+        </div>
+      </div>
+
+      <!-- Opciones + descargar -->
+      <div class="control-row bottom-row">
+        <label class="check-label">
+          <input type="checkbox" id="shadow-toggle" checked>
+          sombra macOS
+        </label>
+        <button id="download-btn" class="action-btn" disabled>descargar PNG</button>
+      </div>
+    </section>
+
+    <!-- Preview -->
+    <section class="preview-area" id="preview-area">
+      <div class="frame-container" id="frame-container" data-style="macos">
+        <div class="frame-titlebar" id="frame-titlebar">
+          <div class="frame-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <span class="frame-url" id="frame-url"></span>
+          <div class="frame-controls" id="frame-controls">
+            <span class="frame-close">&times;</span>
+          </div>
+        </div>
+        <div class="frame-body" id="frame-body">
+          <div class="frame-empty" id="frame-empty">
+            <p>introduce una URL o sube una imagen</p>
+          </div>
+          <iframe id="frame-iframe" hidden></iframe>
+          <img id="frame-img" hidden alt="preview">
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <canvas id="export-canvas" hidden></canvas>
+  <script src="script.js"></script>
+</body>
+</html>
