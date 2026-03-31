@@ -79,15 +79,29 @@
         </div>
       </div>
 
-      <!-- Opciones + descargar -->
+      <!-- Opciones + formato + descargar -->
       <div class="control-row bottom-row">
         <label class="check-label">
           <input type="checkbox" id="shadow-toggle" checked>
           sombra macOS
         </label>
         <div class="download-area">
+          <div class="format-controls">
+            <div class="format-toggles">
+              <button class="format-btn" data-format="png">PNG</button>
+              <button class="format-btn active" data-format="webp">WebP</button>
+            </div>
+            <select id="quality-select">
+              <option value="0.70">70%</option>
+              <option value="0.80">80%</option>
+              <option value="0.85" selected>85%</option>
+              <option value="0.90">90%</option>
+              <option value="0.95">95%</option>
+              <option value="1.00">100%</option>
+            </select>
+          </div>
           <span class="download-hint" id="download-hint" hidden>usa ⌘⇧4 para capturar el frame</span>
-          <button id="download-btn" class="action-btn" disabled>descargar PNG</button>
+          <button id="download-btn" class="action-btn" disabled>descargar</button>
         </div>
       </div>
     </section>

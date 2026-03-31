@@ -1,24 +1,27 @@
 /**
  * export.js
- * Exportación PNG: dibuja el frame + imagen en canvas y descarga como archivo.
+ * Exportación de imagen con frame: dibuja en canvas y descarga como PNG o WebP.
  */
 
 import { roundRect } from "./canvas-utils.js";
 import { getFrameConfig } from "./frame-configs.js";
 import { drawFrame } from "./canvas-draw.js";
+import { canvasToBlob, downloadBlob } from "./convert.js";
 
 const canvas = document.getElementById("export-canvas");
 const ctx = canvas.getContext("2d");
 
 /**
- * Exporta la imagen con el frame aplicado como PNG.
- * @param {HTMLImageElement} image — imagen cargada (thum.io o subida)
+ * Exporta la imagen con el frame aplicado.
+ * @param {HTMLImageElement} image — imagen cargada (microlink o subida)
  * @param {string} style — estilo actual ("macos", "glass", etc.)
  * @param {number} mult — multiplicador de resolución (1, 2, 3)
  * @param {boolean} shadow — si aplicar sombra macOS
  * @param {string} urlText — texto a mostrar en la barra URL
+ * @param {"png"|"webp"} format — formato de exportación
+ * @param {number} quality — calidad WebP (0.0 - 1.0)
  */
-export function exportPNG(image, style, mult, shadow, urlText) {
+export async function exportImage(image, style, mult, shadow, urlText, format, quality) {
   if (!image) return;
 
   const scale = mult;
@@ -60,11 +63,9 @@ export function exportPNG(image, style, mult, shadow, urlText) {
 
   drawFrame(ctx, ox, oy, cfg, image, urlText);
 
-  // Reset transform y descargar
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const link = document.createElement("a");
-  link.download = `frame-${style}-${mult}x.png`;
-  link.href = canvas.toDataURL("image/png");
-  link.click();
+  // Convertir y descargar
+  const { blob, ext } = await canvasToBlob(canvas, format, quality);
+  downloadBlob(blob, `frame-${style}-${mult}x.${ext}`);
 }

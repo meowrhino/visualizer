@@ -213,6 +213,47 @@
   gap: 0.75rem;
 }
 
+/* --- Formato (PNG/WebP) + calidad --- */
+
+.format-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.format-toggles {
+  display: flex;
+  gap: 0;
+}
+
+.format-btn {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.format-btn:first-child { border-radius: 3px 0 0 3px; }
+.format-btn:last-child { border-radius: 0 3px 3px 0; border-left: 0; }
+.format-btn:hover { border-color: #999; }
+
+.format-btn.active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+#quality-select {
+  padding: 0.25rem 0.3rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
 .download-hint {
   font-size: 0.7rem;
   color: #999;

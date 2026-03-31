@@ -5,7 +5,7 @@
  */
 
 import { loadScreenshot, loadImageFile } from "./source.js";
-import { exportPNG } from "./export.js";
+import { exportImage } from "./export.js";
 
 // ─── Helpers DOM ────────────────────────────────────────
 
@@ -19,6 +19,8 @@ let loadedImage = null;   // HTMLImageElement o null
 let currentW = 1440;
 let currentH = 900;
 let currentMult = 1;
+let currentFormat = "webp"; // "png" | "webp"
+let currentQuality = 0.85;
 
 // ─── Refs DOM ───────────────────────────────────────────
 
@@ -189,11 +191,28 @@ $$(".mult-btn").forEach((btn) => {
   });
 });
 
-// ─── Descarga PNG ───────────────────────────────────────
+// ─── Formato (PNG / WebP) + Calidad ─────────────────────
+
+const qualitySelect = $("#quality-select");
+
+$$(".format-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    $$(".format-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentFormat = btn.dataset.format;
+    qualitySelect.disabled = currentFormat === "png";
+  });
+});
+
+qualitySelect.addEventListener("change", () => {
+  currentQuality = parseFloat(qualitySelect.value);
+});
+
+// ─── Descarga ───────────────────────────────────────────
 
 downloadBtn.addEventListener("click", () => {
   const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
-  exportPNG(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText);
+  exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality);
 });
 
 // ─── Init ───────────────────────────────────────────────
