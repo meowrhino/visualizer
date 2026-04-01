@@ -129,11 +129,6 @@
   display: flex;
 }
 
-@media (max-width: 768px) {
-  .preview-area { padding: 1rem 0; }
-  .frame-empty { min-height: 120px; font-size: 0.75rem; }
-}
-
 .frame-empty {
   display: flex;
   align-items: center;
@@ -142,4 +137,9 @@
   font-size: 0.85rem;
   height: 100%;
   min-height: 200px;
+}
+
+@media (max-width: 768px) {
+  .preview-area { padding: 1rem 0; }
+  .frame-empty { min-height: 100px; font-size: 0.7rem; padding: 0 0.5rem; text-align: center; }
 }

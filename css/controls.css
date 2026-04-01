@@ -314,7 +314,11 @@
 
   .source-tabs { align-self: flex-start; }
 
-  .source-url,
+  .source-url {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
   .source-image {
     flex-direction: column;
     align-items: stretch;
