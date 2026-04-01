@@ -324,41 +324,56 @@ async function captureScreenFrame() {
   const track = captureStream.getVideoTracks()[0];
   if (!track || track.readyState !== "live") { captureStream = null; return null; }
 
-  // Crear video element para extraer frame
-  const video = document.createElement("video");
-  video.srcObject = captureStream;
-  video.muted = true;
-  await video.play();
+  try {
+    // Crear video element para extraer frame, con timeout de 3s
+    const video = document.createElement("video");
+    video.srcObject = captureStream;
+    video.muted = true;
+    video.playsInline = true;
 
-  // Esperar un frame
-  await new Promise((r) => requestAnimationFrame(r));
+    await Promise.race([
+      video.play(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
+    ]);
 
-  // Capturar frame en canvas
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0);
-  video.pause();
-  video.srcObject = null;
+    // Esperar 2 frames para asegurar que el video tiene datos
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // Recortar al área del frame-container
-  const dpr = window.devicePixelRatio || 1;
-  const rect = frameContainer.getBoundingClientRect();
-  const cropX = Math.round(rect.left * dpr);
-  const cropY = Math.round(rect.top * dpr);
-  const cropW = Math.round(rect.width * dpr);
-  const cropH = Math.round(rect.height * dpr);
+    if (!video.videoWidth || !video.videoHeight) {
+      video.pause(); video.srcObject = null;
+      return null;
+    }
 
-  // Canvas final con el crop escalado al tamaño real * multiplicador
-  const scale = currentMult;
-  const finalCanvas = document.createElement("canvas");
-  finalCanvas.width = Math.round(cropW * scale / dpr);
-  finalCanvas.height = Math.round(cropH * scale / dpr);
-  const fCtx = finalCanvas.getContext("2d");
-  fCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, finalCanvas.width, finalCanvas.height);
+    // Capturar frame en canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+    video.pause();
+    video.srcObject = null;
 
-  return finalCanvas;
+    // Recortar al área del frame-container
+    const dpr = window.devicePixelRatio || 1;
+    const rect = frameContainer.getBoundingClientRect();
+    const scrollX = window.scrollX || 0;
+    const scrollY = window.scrollY || 0;
+    const cropX = Math.round((rect.left + scrollX) * dpr);
+    const cropY = Math.round((rect.top + scrollY) * dpr);
+    const cropW = Math.round(rect.width * dpr);
+    const cropH = Math.round(rect.height * dpr);
+
+    // Canvas final con el crop escalado al multiplicador
+    const finalCanvas = document.createElement("canvas");
+    finalCanvas.width = Math.round(cropW * currentMult / dpr);
+    finalCanvas.height = Math.round(cropH * currentMult / dpr);
+    const fCtx = finalCanvas.getContext("2d");
+    fCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, finalCanvas.width, finalCanvas.height);
+
+    return finalCanvas;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Countdown ──────────────────────────────────────────
@@ -389,6 +404,7 @@ downloadBtn.addEventListener("click", async () => {
   downloadBtn.disabled = true;
   const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
 
+  try {
   if (currentMode === "iframe") {
     // Countdown para posicionar hovers
     await countdown(3);
@@ -410,8 +426,8 @@ downloadBtn.addEventListener("click", async () => {
           link.href = url;
           link.click();
           URL.revokeObjectURL(url);
-          downloadHint.hidden = true;
         }, mime, quality);
+        downloadHint.hidden = true;
         downloadBtn.disabled = false;
         return;
       }
@@ -446,6 +462,11 @@ downloadBtn.addEventListener("click", async () => {
     // Imagen subida: exportar normal
     exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
     downloadHint.hidden = true;
+  }
+
+  } catch (e) {
+    downloadHint.textContent = `error: ${e.message || "fallo al capturar"}`;
+    downloadHint.hidden = false;
   }
 
   downloadBtn.disabled = false;
