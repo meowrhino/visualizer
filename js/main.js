@@ -146,24 +146,25 @@ async function handleImageFile(file) {
 function loadNavicon(url) {
   try {
     const domain = new URL(url).hostname;
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      loadedNavicon = img;
-      frameNavicon.src = faviconUrl;
-      frameNavicon.hidden = false;
-    };
-    img.onerror = () => {
-      loadedNavicon = null;
-      frameNavicon.removeAttribute("src");
-      frameNavicon.hidden = true;
-    };
-    img.src = faviconUrl;
+    const faviconUrl = `https://favicone.com/${domain}?s=32`;
+
+    // Preview HTML
+    frameNavicon.src = faviconUrl;
+
+    // Canvas export: fetch + blob (favicone.com soporta CORS)
+    fetch(faviconUrl)
+      .then((r) => r.blob())
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => { loadedNavicon = img; };
+        img.onerror = () => { loadedNavicon = null; };
+        img.src = blobUrl;
+      })
+      .catch(() => { loadedNavicon = null; });
   } catch {
     loadedNavicon = null;
     frameNavicon.removeAttribute("src");
-    frameNavicon.hidden = true;
   }
 }
 
