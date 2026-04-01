@@ -23,7 +23,7 @@ let currentH = 900;
 let currentMult = 1;
 let currentFormat = "webp"; // "png" | "webp"
 let currentQuality = 0.85;
-let captureStream = null;  // MediaStream de Screen Capture API
+let extensionId = null;    // ID de la extensión de captura
 
 // ─── Refs DOM ───────────────────────────────────────────
 
@@ -127,14 +127,16 @@ async function handleLoadURL() {
   const iframeOk = await loadIframe(frameIframe, url);
 
   if (iframeOk) {
-    // Iframe funciona — pedir Screen Capture para poder capturar hovers
     downloadBtn.disabled = false;
-    if (!captureStream) {
-      downloadHint.textContent = "activa compartir pestaña para capturar hovers";
-      downloadHint.hidden = false;
-      await initScreenCapture();
+
+    // Detectar extensión de captura
+    if (!extensionId) await detectExtension();
+
+    if (extensionId) {
+      downloadHint.textContent = "navega, haz hover y descarga";
+    } else {
+      downloadHint.textContent = "instala la extensión para capturar hovers";
     }
-    downloadHint.textContent = captureStream ? "navega, haz hover y descarga" : "navega y descarga (sin hovers)";
     downloadHint.hidden = false;
     applyShadow();
     return;
@@ -301,83 +303,90 @@ qualitySelect.addEventListener("change", () => {
   currentQuality = parseFloat(qualitySelect.value);
 });
 
-// ─── Screen Capture (captura contenido iframe con hovers) ─
+// ─── Extensión Chrome (captura real con hovers) ─────────
 
-async function initScreenCapture() {
-  if (captureStream) return true;
-  try {
-    captureStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: "browser" },
-      preferCurrentTab: true,
-    });
-    captureStream.getVideoTracks()[0].onended = () => { captureStream = null; };
+/**
+ * Detecta si la extensión está instalada intentando comunicarse.
+ * Prueba una lista de IDs conocidos.
+ */
+async function detectExtension() {
+  // El ID se puede obtener de chrome://extensions después de instalar
+  // Intentar con IDs conocidos o buscar por broadcast
+  const knownIds = (window.__VISUALIZER_EXT_ID)
+    ? [window.__VISUALIZER_EXT_ID]
+    : [];
+
+  // Método universal: la extensión inyecta su ID en el DOM
+  const el = document.getElementById("visualizer-ext-id");
+  if (el) {
+    extensionId = el.textContent.trim();
     return true;
-  } catch {
-    captureStream = null;
-    return false;
   }
+
+  // Probar IDs conocidos
+  for (const id of knownIds) {
+    try {
+      const ok = await pingExtension(id);
+      if (ok) { extensionId = id; return true; }
+    } catch { /* next */ }
+  }
+
+  return false;
+}
+
+function pingExtension(id) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(id, { action: "captureTab" }, (resp) => {
+        resolve(resp && resp.dataUrl ? true : false);
+      });
+      setTimeout(() => resolve(false), 1000);
+    } catch { resolve(false); }
+  });
 }
 
 /**
- * Captura SOLO el contenido del iframe (lo que ve el usuario, con hovers).
- * Devuelve un HTMLImageElement listo para pasar a exportImage().
+ * Captura la pestaña via extensión, recorta al iframe, devuelve HTMLImageElement.
  */
-async function captureIframeContent() {
-  if (!captureStream) return null;
-  const track = captureStream.getVideoTracks()[0];
-  if (!track || track.readyState !== "live") { captureStream = null; return null; }
+async function captureViaExtension() {
+  if (!extensionId) return null;
 
-  try {
-    const video = document.createElement("video");
-    video.srcObject = captureStream;
-    video.muted = true;
-    video.playsInline = true;
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(extensionId, { action: "captureTab" }, (resp) => {
+        if (!resp || !resp.dataUrl) { resolve(null); return; }
 
-    await Promise.race([
-      new Promise((r) => video.addEventListener("loadeddata", r, { once: true })),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000)),
-    ]);
-    await video.play();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const fullImg = new Image();
+        fullImg.onload = () => {
+          // Recortar al área del frameBody (contenido del iframe)
+          const rect = frameBody.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const cropX = Math.round(rect.left * dpr);
+          const cropY = Math.round(rect.top * dpr);
+          const cropW = Math.round(rect.width * dpr);
+          const cropH = Math.round(rect.height * dpr);
 
-    if (!video.videoWidth || !video.videoHeight) {
-      video.pause(); video.srcObject = null;
-      return null;
-    }
+          const canvas = document.createElement("canvas");
+          canvas.width = currentW;
+          canvas.height = currentH;
+          canvas.getContext("2d").drawImage(
+            fullImg, cropX, cropY, cropW, cropH,
+            0, 0, currentW, currentH
+          );
 
-    // Capturar frame completo del tab
-    const fullCanvas = document.createElement("canvas");
-    fullCanvas.width = video.videoWidth;
-    fullCanvas.height = video.videoHeight;
-    fullCanvas.getContext("2d").drawImage(video, 0, 0);
-    video.pause();
-    video.srcObject = null;
+          const out = new Image();
+          out.onload = () => resolve(out);
+          out.onerror = () => resolve(null);
+          out.src = canvas.toDataURL();
+        };
+        fullImg.onerror = () => resolve(null);
+        fullImg.src = resp.dataUrl;
+      });
 
-    // Recortar SOLO al área del iframe (frameBody), no del frame-container
-    const rect = frameBody.getBoundingClientRect();
-    const scaleX = video.videoWidth / window.innerWidth;
-    const scaleY = video.videoHeight / window.innerHeight;
-    const cropX = Math.round(rect.left * scaleX);
-    const cropY = Math.round(rect.top * scaleY);
-    const cropW = Math.round(rect.width * scaleX);
-    const cropH = Math.round(rect.height * scaleY);
-
-    // Canvas con el contenido del iframe a tamaño real (currentW x currentH)
-    const out = document.createElement("canvas");
-    out.width = currentW;
-    out.height = currentH;
-    out.getContext("2d").drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, currentW, currentH);
-
-    // Convertir canvas a HTMLImageElement para exportImage()
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = out.toDataURL();
-    });
-  } catch {
-    return null;
-  }
+      // Timeout 5s
+      setTimeout(() => resolve(null), 5000);
+    } catch { resolve(null); }
+  });
 }
 
 // ─── Countdown ──────────────────────────────────────────
@@ -418,9 +427,9 @@ downloadBtn.addEventListener("click", async () => {
 
     let contentImage = null;
 
-    // 1. Intentar Screen Capture (captura real con hovers)
-    if (captureStream) {
-      contentImage = await captureIframeContent();
+    // 1. Intentar extensión Chrome (captura real con hovers)
+    if (extensionId) {
+      contentImage = await captureViaExtension();
     }
 
     // 2. Fallback: Microlink (sin hovers)
