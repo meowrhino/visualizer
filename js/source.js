@@ -12,29 +12,41 @@
  * @param {number} viewportH — alto del viewport para la captura
  * @returns {Promise<{image: HTMLImageElement|null, canExport: boolean}>}
  */
-export function loadScreenshot(rawUrl, viewportW, viewportH) {
+export async function loadScreenshot(rawUrl, viewportW, viewportH) {
   let url = rawUrl.trim();
-  if (!url) return Promise.resolve({ image: null, canExport: false });
+  if (!url) return { image: null, canExport: false, error: null };
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 
   const params = new URLSearchParams({
     url,
     screenshot: "true",
     meta: "false",
-    "embed": "screenshot.url",
     "viewport.width": viewportW,
     "viewport.height": viewportH,
     "viewport.deviceScaleFactor": 1,
   });
   const apiUrl = `https://api.microlink.io?${params}`;
 
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve({ image: img, canExport: true });
-    img.onerror = () => resolve({ image: null, canExport: false });
-    img.src = apiUrl;
-  });
+  try {
+    const res = await fetch(apiUrl);
+    const json = await res.json();
+
+    if (json.status !== "success" || !json.data?.screenshot?.url) {
+      const msg = json.message || json.status || "error desconocido";
+      return { image: null, canExport: false, error: msg };
+    }
+
+    const screenshotUrl = json.data.screenshot.url;
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve({ image: img, canExport: true, error: null });
+      img.onerror = () => resolve({ image: null, canExport: false, error: "no se pudo cargar la imagen" });
+      img.src = screenshotUrl;
+    });
+  } catch (e) {
+    return { image: null, canExport: false, error: e.message || "error de red" };
+  }
 }
 
 /**

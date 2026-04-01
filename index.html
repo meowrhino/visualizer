@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>visualizer — browser frame preview</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon/favicon-16x16.png">
+  <link rel="icon" href="favicon/favicon.ico">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/controls.css">
   <link rel="stylesheet" href="css/frame.css">
@@ -21,9 +24,9 @@
       <div class="control-row">
         <label>estilo</label>
         <div class="style-toggles">
-          <button class="style-btn active" data-style="macos">macOS</button>
+          <button class="style-btn active" data-style="windows">Windows</button>
+          <button class="style-btn" data-style="macos">macOS</button>
           <button class="style-btn" data-style="glass">Glass</button>
-          <button class="style-btn" data-style="windows">Windows</button>
           <button class="style-btn" data-style="pixel">Pixel</button>
           <button class="style-btn" data-style="dots">Dots</button>
           <button class="style-btn" data-style="gx">GX</button>
@@ -108,8 +111,9 @@
 
     <!-- Preview -->
     <section class="preview-area" id="preview-area">
-      <div class="frame-container" id="frame-container" data-style="macos">
+      <div class="frame-container" id="frame-container" data-style="windows">
         <div class="frame-titlebar" id="frame-titlebar">
+          <img class="frame-navicon" id="frame-navicon" hidden>
           <div class="frame-dots">
             <span class="dot red"></span>
             <span class="dot yellow"></span>

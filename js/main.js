@@ -14,8 +14,9 @@ const $$ = (s) => document.querySelectorAll(s);
 
 // ─── Estado global ──────────────────────────────────────
 
-let currentStyle = "macos";
+let currentStyle = "windows";
 let loadedImage = null;   // HTMLImageElement o null
+let loadedNavicon = null; // HTMLImageElement o null (favicon del sitio)
 let currentW = 1440;
 let currentH = 900;
 let currentMult = 1;
@@ -30,6 +31,7 @@ const frameImg = $("#frame-img");
 const frameEmpty = $("#frame-empty");
 const frameUrl = $("#frame-url");
 const urlInput = $("#url-input");
+const frameNavicon = $("#frame-navicon");
 const downloadBtn = $("#download-btn");
 const downloadHint = $("#download-hint");
 const shadowToggle = $("#shadow-toggle");
@@ -87,8 +89,11 @@ async function handleLoadURL() {
   downloadHint.textContent = "capturando...";
   downloadHint.hidden = false;
 
+  // Cargar favicon del sitio
+  loadNavicon(url);
+
   // Capturar screenshot
-  const { image, canExport } = await loadScreenshot(url, currentW, currentH);
+  const { image, canExport, error } = await loadScreenshot(url, currentW, currentH);
 
   if (image) {
     frameImg.src = image.src;
@@ -100,7 +105,7 @@ async function handleLoadURL() {
       downloadHint.textContent = "usa ⌘⇧4 para capturar el frame";
     }
   } else {
-    downloadHint.textContent = "error al capturar — prueba otra URL";
+    downloadHint.textContent = error ? `error: ${error}` : "error al capturar — prueba otra URL";
   }
 
   applyDimensions();
@@ -134,6 +139,32 @@ async function handleImageFile(file) {
   downloadHint.hidden = true;
   applyDimensions();
   applyShadow();
+}
+
+// ─── Navicon (favicon del sitio) ────────────────────────
+
+function loadNavicon(url) {
+  try {
+    const domain = new URL(url).hostname;
+    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      loadedNavicon = img;
+      frameNavicon.src = faviconUrl;
+      frameNavicon.hidden = false;
+    };
+    img.onerror = () => {
+      loadedNavicon = null;
+      frameNavicon.removeAttribute("src");
+      frameNavicon.hidden = true;
+    };
+    img.src = faviconUrl;
+  } catch {
+    loadedNavicon = null;
+    frameNavicon.removeAttribute("src");
+    frameNavicon.hidden = true;
+  }
 }
 
 // ─── Sombra ─────────────────────────────────────────────
@@ -212,7 +243,7 @@ qualitySelect.addEventListener("change", () => {
 
 downloadBtn.addEventListener("click", () => {
   const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
-  exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality);
+  exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
 });
 
 // ─── Init ───────────────────────────────────────────────

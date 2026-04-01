@@ -21,7 +21,7 @@ const ctx = canvas.getContext("2d");
  * @param {"png"|"webp"} format — formato de exportación
  * @param {number} quality — calidad WebP (0.0 - 1.0)
  */
-export async function exportImage(image, style, mult, shadow, urlText, format, quality) {
+export async function exportImage(image, style, mult, shadow, urlText, format, quality, navicon) {
   if (!image) return;
 
   const scale = mult;
@@ -61,7 +61,7 @@ export async function exportImage(image, style, mult, shadow, urlText, format, q
     ctx.restore();
   }
 
-  drawFrame(ctx, ox, oy, cfg, image, urlText);
+  drawFrame(ctx, ox, oy, cfg, image, urlText, navicon);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 

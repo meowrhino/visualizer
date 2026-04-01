@@ -9,7 +9,7 @@ import { roundRect, roundRectPath } from "./canvas-utils.js";
 /**
  * Dibuja el frame completo: fondo, barra, dots, URL, botones, imagen y borde.
  */
-export function drawFrame(ctx, ox, oy, cfg, img, text) {
+export function drawFrame(ctx, ox, oy, cfg, img, text, navicon) {
   const { totalW, totalH, barH, radius, barBg, borderColor, borderW } = cfg;
   const imgW = img.naturalWidth;
   const imgH = img.naturalHeight;
@@ -54,6 +54,14 @@ export function drawFrame(ctx, ox, oy, cfg, img, text) {
   // --- Texto URL ---
   if (cfg.showUrl && text) {
     drawUrlText(ctx, cfg, text, barX, barY, barH, barW);
+  }
+
+  // --- Navicon (Windows) ---
+  if (cfg.closeStyle === "windows" && navicon) {
+    const iconSize = 16;
+    const iconX = barX + 10;
+    const iconY = barY + (barH - iconSize) / 2;
+    ctx.drawImage(navicon, iconX, iconY, iconSize, iconSize);
   }
 
   // --- Botones ventana (Windows) ---

@@ -57,6 +57,14 @@
   white-space: nowrap;
 }
 
+.frame-navicon {
+  display: none;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .frame-controls {
   display: none;
   flex-shrink: 0;
