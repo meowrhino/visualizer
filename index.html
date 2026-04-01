@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>visualizer — browser frame preview</title>
+  <meta name="description" content="Crea capturas de pantalla con browser frames para tu portfolio e Instagram">
+  <title>visualizer — browser frame screenshots</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inknut+Antiqua:wght@300;400;600&display=swap" rel="stylesheet">
@@ -18,40 +19,39 @@
 <body>
   <header>
     <h1>visualizer</h1>
-    <p class="subtitle">preview browser frames for screenshots</p>
+    <p class="subtitle">browser frame screenshots for your portfolio</p>
   </header>
 
   <main>
+    <!-- Controls -->
     <section class="controls">
-      <!-- Estilos -->
       <div class="control-row">
         <label>estilo</label>
-        <div class="style-toggles">
-          <button class="style-btn active" data-style="windows">Windows</button>
-          <button class="style-btn" data-style="macos">macOS</button>
-          <button class="style-btn" data-style="glass">Glass</button>
-          <button class="style-btn" data-style="pixel">Pixel</button>
-          <button class="style-btn" data-style="dots">Dots</button>
-          <button class="style-btn" data-style="gx">GX</button>
-          <button class="style-btn" data-style="neu">Neu</button>
-          <button class="style-btn" data-style="dia">Dia</button>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-style="windows">Windows</button>
+          <button class="toggle-btn" data-style="macos">macOS</button>
+          <button class="toggle-btn" data-style="glass">Glass</button>
+          <button class="toggle-btn" data-style="pixel">Pixel</button>
+          <button class="toggle-btn" data-style="dots">Dots</button>
+          <button class="toggle-btn" data-style="gx">GX</button>
+          <button class="toggle-btn" data-style="neu">Neu</button>
+          <button class="toggle-btn" data-style="dia">Dia</button>
         </div>
       </div>
 
-      <!-- Fuente: URL o imagen -->
       <div class="control-row">
         <label>fuente</label>
         <div class="source-controls">
-          <div class="source-tabs">
-            <button class="source-tab active" data-source="url">URL</button>
-            <button class="source-tab" data-source="image">imagen</button>
+          <div class="toggle-group">
+            <button class="toggle-btn source-tab active" data-source="url">URL</button>
+            <button class="toggle-btn source-tab" data-source="image">imagen</button>
           </div>
           <div class="source-url" id="source-url">
-            <input type="url" id="url-input" placeholder="https://ejemplo.com" value="">
-            <button id="load-url-btn" class="action-btn-sm">cargar</button>
+            <input type="url" id="url-input" placeholder="https://ejemplo.com" autocomplete="off">
+            <button id="load-url-btn" class="btn-primary btn-sm">cargar</button>
           </div>
           <div class="source-image" id="source-image" hidden>
-            <div class="drop-zone-inline" id="drop-zone">
+            <div class="drop-zone" id="drop-zone">
               <span>+ arrastra imagen o click</span>
               <input type="file" id="file-input" accept="image/*" hidden>
             </div>
@@ -60,42 +60,40 @@
         </div>
       </div>
 
-      <!-- Proporciones / Dimensiones -->
       <div class="control-row">
         <label>tamaño</label>
         <div class="size-controls">
-          <div class="ratio-toggles">
-            <button class="ratio-btn active" data-w="1440" data-h="900">16:10</button>
-            <button class="ratio-btn" data-w="1920" data-h="1080">16:9</button>
-            <button class="ratio-btn" data-w="1440" data-h="960">3:2</button>
-            <button class="ratio-btn" data-w="1024" data-h="768">4:3</button>
-            <button class="ratio-btn" data-w="768" data-h="1024">3:4</button>
-            <button class="ratio-btn" data-w="375" data-h="667">9:16+</button>
-            <button class="ratio-btn" data-w="360" data-h="640">9:16</button>
+          <div class="toggle-group">
+            <button class="toggle-btn ratio-btn active" data-w="1440" data-h="900">16:10</button>
+            <button class="toggle-btn ratio-btn" data-w="1920" data-h="1080">16:9</button>
+            <button class="toggle-btn ratio-btn" data-w="1440" data-h="960">3:2</button>
+            <button class="toggle-btn ratio-btn" data-w="1024" data-h="768">4:3</button>
+            <button class="toggle-btn ratio-btn" data-w="768" data-h="1024">3:4</button>
+            <button class="toggle-btn ratio-btn" data-w="375" data-h="667">9:16+</button>
+            <button class="toggle-btn ratio-btn" data-w="360" data-h="640">9:16</button>
           </div>
           <div class="size-inputs">
             <input type="number" id="dim-w" value="1440" min="200" max="3840"> <span class="times">×</span>
             <input type="number" id="dim-h" value="900" min="200" max="3840">
-            <div class="multiplier-toggles">
-              <button class="mult-btn active" data-mult="1">1x</button>
-              <button class="mult-btn" data-mult="2">2x</button>
-              <button class="mult-btn" data-mult="3">3x</button>
+            <div class="toggle-group">
+              <button class="toggle-btn mult-btn active" data-mult="1">1x</button>
+              <button class="toggle-btn mult-btn" data-mult="2">2x</button>
+              <button class="toggle-btn mult-btn" data-mult="3">3x</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Opciones + formato + descargar -->
       <div class="control-row bottom-row">
         <label class="check-label">
           <input type="checkbox" id="shadow-toggle" checked>
-          sombra macOS
+          sombra
         </label>
         <div class="download-area">
           <div class="format-controls">
-            <div class="format-toggles">
-              <button class="format-btn" data-format="png">PNG</button>
-              <button class="format-btn active" data-format="webp">WebP</button>
+            <div class="toggle-group">
+              <button class="toggle-btn format-btn" data-format="png">PNG</button>
+              <button class="toggle-btn format-btn active" data-format="webp">WebP</button>
             </div>
             <select id="quality-select">
               <option value="0.70">70%</option>
@@ -106,8 +104,8 @@
               <option value="1.00">100%</option>
             </select>
           </div>
-          <span class="download-hint" id="download-hint" hidden>usa ⌘⇧4 para capturar el frame</span>
-          <button id="download-btn" class="action-btn" disabled>descargar</button>
+          <span class="download-hint" id="download-hint" hidden></span>
+          <button id="download-btn" class="btn-primary" disabled>descargar</button>
         </div>
       </div>
     </section>
@@ -116,7 +114,7 @@
     <section class="preview-area" id="preview-area">
       <div class="frame-container" id="frame-container" data-style="windows">
         <div class="frame-titlebar" id="frame-titlebar">
-          <img class="frame-navicon" id="frame-navicon">
+          <img class="frame-navicon" id="frame-navicon" alt="">
           <div class="frame-dots">
             <span class="dot red"></span>
             <span class="dot yellow"></span>
@@ -134,10 +132,45 @@
             <p>introduce una URL o sube una imagen</p>
           </div>
           <img id="frame-img" hidden alt="preview">
-          <iframe id="frame-iframe" class="frame-iframe" hidden></iframe>
+          <iframe id="frame-iframe" class="frame-iframe" hidden title="preview"></iframe>
           <div class="frame-countdown" id="frame-countdown"></div>
         </div>
       </div>
+    </section>
+
+    <!-- Extension info -->
+    <section class="extension-info" id="extension-info">
+      <div class="ext-badge" id="ext-badge">
+        <span class="ext-status" id="ext-status"></span>
+      </div>
+      <details class="ext-details">
+        <summary>sobre la captura de pantalla</summary>
+        <div class="ext-content">
+          <p>
+            <strong>sin extensión</strong> — las capturas se hacen via
+            <a href="https://microlink.io" target="_blank" rel="noopener">microlink.io</a>
+            (screenshot remoto). funciona siempre pero no captura hovers ni estados interactivos.
+          </p>
+          <p>
+            <strong>con extensión</strong> — captura exactamente lo que ves en pantalla,
+            incluyendo hovers, menús abiertos, animaciones. tienes 3 segundos de cuenta atrás
+            para posicionar el ratón antes de la captura.
+          </p>
+          <h4>instalar la extensión</h4>
+          <ol>
+            <li>descarga la <a href="extension/" id="ext-download-link">carpeta extension/</a> del repositorio</li>
+            <li>abre <code>chrome://extensions</code> en chrome o brave</li>
+            <li>activa <strong>modo desarrollador</strong> (arriba a la derecha)</li>
+            <li>click en <strong>cargar descomprimida</strong></li>
+            <li>selecciona la carpeta <code>extension/</code></li>
+            <li>recarga esta página</li>
+          </ol>
+          <p class="ext-note">
+            compatible con chrome, brave, edge, opera, arc y cualquier navegador chromium.
+            <a href="https://github.com/meowrhino/visualizer" target="_blank" rel="noopener">código fuente</a> — 100% libre y abierto.
+          </p>
+        </div>
+      </details>
     </section>
   </main>
 

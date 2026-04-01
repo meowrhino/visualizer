@@ -1,63 +1,69 @@
 /**
- * main.js
- * Punto de entrada del visualizer.
- * Orquesta controles, estado global, y conecta los módulos.
+ * main.js — Punto de entrada del visualizer.
+ * Orquesta controles, estado, extensión y descarga.
  */
 
 import { loadIframe, loadScreenshot, loadImageFile } from "./source.js";
 import { exportImage } from "./export.js";
 
-// ─── Helpers DOM ────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 
-// ─── Estado global ──────────────────────────────────────
+// ─── State ──────────────────────────────────────────────
 
-let currentStyle = "windows";
-let loadedImage = null;   // HTMLImageElement o null
-let loadedNavicon = null; // HTMLImageElement o null (favicon del sitio)
-let currentMode = "empty"; // "empty" | "iframe" | "screenshot" | "image"
-let currentW = 1440;
-let currentH = 900;
-let currentMult = 1;
-let currentFormat = "webp"; // "png" | "webp"
-let currentQuality = 0.85;
-let extensionId = null;    // ID de la extensión de captura
+const state = {
+  style: "windows",
+  mode: "empty",       // "empty" | "iframe" | "screenshot" | "image"
+  image: null,         // HTMLImageElement (screenshot/upload)
+  navicon: null,       // HTMLImageElement (favicon for canvas export)
+  extensionId: null,   // Chrome extension ID
+  w: 1440,
+  h: 900,
+  mult: 1,
+  format: "webp",
+  quality: 0.85,
+};
 
-// ─── Refs DOM ───────────────────────────────────────────
+// ─── DOM refs ───────────────────────────────────────────
 
-const frameContainer = $("#frame-container");
-const frameBody = $("#frame-body");
-const frameImg = $("#frame-img");
-const frameIframe = $("#frame-iframe");
-const frameEmpty = $("#frame-empty");
-const frameUrl = $("#frame-url");
-const urlInput = $("#url-input");
-const frameNavicon = $("#frame-navicon");
-const downloadBtn = $("#download-btn");
-const downloadHint = $("#download-hint");
-const shadowToggle = $("#shadow-toggle");
-const dimW = $("#dim-w");
-const dimH = $("#dim-h");
-const dropZone = $("#drop-zone");
-const fileInput = $("#file-input");
-const fileNameEl = $("#file-name");
+const dom = {
+  frameContainer: $("#frame-container"),
+  frameBody:      $("#frame-body"),
+  frameImg:       $("#frame-img"),
+  frameIframe:    $("#frame-iframe"),
+  frameEmpty:     $("#frame-empty"),
+  frameUrl:       $("#frame-url"),
+  frameNavicon:   $("#frame-navicon"),
+  frameCountdown: $("#frame-countdown"),
+  urlInput:       $("#url-input"),
+  downloadBtn:    $("#download-btn"),
+  downloadHint:   $("#download-hint"),
+  shadowToggle:   $("#shadow-toggle"),
+  dimW:           $("#dim-w"),
+  dimH:           $("#dim-h"),
+  dropZone:       $("#drop-zone"),
+  fileInput:      $("#file-input"),
+  fileNameEl:     $("#file-name"),
+  qualitySelect:  $("#quality-select"),
+  extStatus:      $("#ext-status"),
+};
 
-// ─── Estilos ────────────────────────────────────────────
+// ─── Style toggles ──────────────────────────────────────
 
-$$(".style-btn").forEach((btn) => {
+$$("[data-style]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    $$(".style-btn").forEach((b) => b.classList.remove("active"));
+    $$("[data-style]").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    currentStyle = btn.dataset.style;
-    frameContainer.dataset.style = currentStyle;
-    frameUrl.textContent = urlInput.value.replace(/^https?:\/\//, "") || "";
+    state.style = btn.dataset.style;
+    dom.frameContainer.dataset.style = state.style;
+    dom.frameUrl.textContent = dom.urlInput.value.replace(/^https?:\/\//, "") || "";
     applyShadow();
   });
 });
 
-// ─── Tabs fuente (URL / imagen) ─────────────────────────
+// ─── Source tabs ────────────────────────────────────────
 
 $$(".source-tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -69,309 +75,263 @@ $$(".source-tab").forEach((tab) => {
   });
 });
 
-// ─── Helpers de modo ────────────────────────────────────
+// ─── Mode helpers ───────────────────────────────────────
 
-function showIframe() {
-  frameIframe.hidden = false;
-  frameImg.hidden = true;
-  frameEmpty.hidden = true;
-  frameBody.classList.remove("scrollable");
-  currentMode = "iframe";
+function setMode(mode) {
+  state.mode = mode;
+  dom.frameEmpty.hidden   = mode !== "empty";
+  dom.frameImg.hidden     = mode !== "screenshot" && mode !== "image";
+  dom.frameIframe.hidden  = mode !== "iframe";
+  dom.frameBody.classList.toggle("scrollable", mode === "screenshot");
+
+  if (mode !== "iframe") {
+    dom.frameIframe.src = "";
+  }
 }
 
-function showScreenshot() {
-  frameIframe.hidden = true;
-  frameIframe.src = "";
-  frameImg.hidden = false;
-  frameEmpty.hidden = true;
-  frameBody.classList.add("scrollable");
-  currentMode = "screenshot";
-}
-
-function showImage() {
-  frameIframe.hidden = true;
-  frameIframe.src = "";
-  frameImg.hidden = false;
-  frameEmpty.hidden = true;
-  frameBody.classList.remove("scrollable");
-  currentMode = "image";
-}
-
-// ─── Carga de URL (iframe + fallback screenshot) ────────
+// ─── URL loading ────────────────────────────────────────
 
 $("#load-url-btn").addEventListener("click", handleLoadURL);
-urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleLoadURL(); });
-urlInput.addEventListener("input", () => {
-  frameUrl.textContent = urlInput.value.replace(/^https?:\/\//, "");
+dom.urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleLoadURL(); });
+dom.urlInput.addEventListener("input", () => {
+  dom.frameUrl.textContent = dom.urlInput.value.replace(/^https?:\/\//, "");
 });
 
 async function handleLoadURL() {
-  let url = urlInput.value.trim();
+  let url = dom.urlInput.value.trim();
   if (!url) return;
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
-  urlInput.value = url;
+  dom.urlInput.value = url;
 
-  // Preparar UI
-  loadedImage = null;
-  frameUrl.textContent = url.replace(/^https?:\/\//, "");
-  downloadBtn.disabled = true;
-  downloadHint.textContent = "cargando...";
-  downloadHint.hidden = false;
+  // Reset
+  state.image = null;
+  dom.frameUrl.textContent = url.replace(/^https?:\/\//, "");
+  dom.downloadBtn.disabled = true;
+  showHint("cargando...");
 
-  // Cargar favicon del sitio
   loadNavicon(url);
   applyDimensions();
 
-  // 1. Intentar iframe
-  showIframe();
-  const iframeOk = await loadIframe(frameIframe, url);
+  // 1. Try iframe
+  setMode("iframe");
+  const iframeOk = await loadIframe(dom.frameIframe, url);
 
   if (iframeOk) {
-    downloadBtn.disabled = false;
-
-    // Detectar extensión de captura
-    if (!extensionId) await detectExtension();
-
-    if (extensionId) {
-      downloadHint.textContent = "navega, haz hover y descarga";
-    } else {
-      downloadHint.textContent = "instala la extensión para capturar hovers";
-    }
-    downloadHint.hidden = false;
+    dom.downloadBtn.disabled = false;
+    if (!state.extensionId) await detectExtension();
+    showHint(state.extensionId
+      ? "navega, haz hover y descarga"
+      : "sin extensión — descarga via microlink");
     applyShadow();
     return;
   }
 
-  // 2. Fallback: screenshot full-page (scrollable)
-  downloadHint.textContent = "iframe bloqueado, capturando screenshot...";
-  showScreenshot();
+  // 2. Fallback: full-page screenshot
+  showHint("iframe bloqueado, capturando...");
+  setMode("screenshot");
 
-  const { image, canExport, error } = await loadScreenshot(url, currentW, currentH, true);
+  const { image, canExport, error } = await loadScreenshot(url, state.w, state.h, true);
 
-  if (image) {
-    frameImg.src = image.src;
-    if (canExport) {
-      loadedImage = image;
-      downloadBtn.disabled = false;
-      downloadHint.textContent = "haz scroll para elegir zona";
-      downloadHint.hidden = false;
-    } else {
-      downloadHint.textContent = "usa ⌘⇧4 para capturar el frame";
-    }
+  if (image && canExport) {
+    dom.frameImg.src = image.src;
+    state.image = image;
+    dom.downloadBtn.disabled = false;
+    showHint("haz scroll para elegir zona");
   } else {
-    downloadHint.textContent = error ? `error: ${error}` : "error al capturar — prueba otra URL";
+    showHint(error ? `error: ${error}` : "error al capturar");
   }
 
   applyShadow();
 }
 
-// ─── Subida de imagen ───────────────────────────────────
+// ─── Image upload ───────────────────────────────────────
 
-dropZone.addEventListener("click", () => fileInput.click());
-dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-dropZone.addEventListener("drop", (e) => {
+dom.dropZone.addEventListener("click", () => dom.fileInput.click());
+dom.dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dom.dropZone.classList.add("dragover"); });
+dom.dropZone.addEventListener("dragleave", () => dom.dropZone.classList.remove("dragover"));
+dom.dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
-  dropZone.classList.remove("dragover");
+  dom.dropZone.classList.remove("dragover");
   const file = e.dataTransfer.files[0];
   if (file?.type.startsWith("image/")) handleImageFile(file);
 });
-fileInput.addEventListener("change", () => {
-  if (fileInput.files[0]) handleImageFile(fileInput.files[0]);
+dom.fileInput.addEventListener("change", () => {
+  if (dom.fileInput.files[0]) handleImageFile(dom.fileInput.files[0]);
 });
 
 async function handleImageFile(file) {
   const img = await loadImageFile(file);
-  loadedImage = img;
-  frameImg.src = img.src;
-  showImage();
-  frameUrl.textContent = file.name;
-  fileNameEl.textContent = file.name;
-  downloadBtn.disabled = false;
-  downloadHint.hidden = true;
+  state.image = img;
+  dom.frameImg.src = img.src;
+  setMode("image");
+  dom.frameUrl.textContent = file.name;
+  dom.fileNameEl.textContent = file.name;
+  dom.downloadBtn.disabled = false;
+  hideHint();
   applyDimensions();
   applyShadow();
 }
 
-// ─── Navicon (favicon del sitio) ────────────────────────
+// ─── Navicon (site favicon) ─────────────────────────────
+
+let naviconBlobUrl = null;
 
 function loadNavicon(url) {
+  // Clean up previous blob URL
+  if (naviconBlobUrl) { URL.revokeObjectURL(naviconBlobUrl); naviconBlobUrl = null; }
+
   try {
     const domain = new URL(url).hostname;
     const faviconUrl = `https://favicone.com/${domain}?s=32`;
 
-    // Preview HTML
-    frameNavicon.src = faviconUrl;
+    dom.frameNavicon.src = faviconUrl;
 
-    // Canvas export: fetch + blob (favicone.com soporta CORS)
+    // Fetch as blob for canvas export (favicone.com supports CORS)
     fetch(faviconUrl)
       .then((r) => r.blob())
       .then((blob) => {
-        const blobUrl = URL.createObjectURL(blob);
+        naviconBlobUrl = URL.createObjectURL(blob);
         const img = new Image();
-        img.onload = () => { loadedNavicon = img; };
-        img.onerror = () => { loadedNavicon = null; };
-        img.src = blobUrl;
+        img.onload = () => { state.navicon = img; };
+        img.onerror = () => { state.navicon = null; };
+        img.src = naviconBlobUrl;
       })
-      .catch(() => { loadedNavicon = null; });
+      .catch(() => { state.navicon = null; });
   } catch {
-    loadedNavicon = null;
-    frameNavicon.removeAttribute("src");
+    state.navicon = null;
+    dom.frameNavicon.removeAttribute("src");
   }
 }
 
-// ─── Sombra ─────────────────────────────────────────────
+// ─── Shadow ─────────────────────────────────────────────
 
-shadowToggle.addEventListener("change", applyShadow);
+dom.shadowToggle.addEventListener("change", applyShadow);
 
 function applyShadow() {
-  if (currentStyle === "neu") {
-    frameContainer.classList.remove("with-shadow");
-  } else {
-    frameContainer.classList.toggle("with-shadow", shadowToggle.checked);
-  }
+  const on = state.style !== "neu" && dom.shadowToggle.checked;
+  dom.frameContainer.classList.toggle("with-shadow", on);
 }
 
-// ─── Proporciones / Dimensiones ─────────────────────────
+// ─── Dimensions ─────────────────────────────────────────
 
 $$(".ratio-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     $$(".ratio-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    currentW = parseInt(btn.dataset.w);
-    currentH = parseInt(btn.dataset.h);
-    dimW.value = currentW;
-    dimH.value = currentH;
+    state.w = parseInt(btn.dataset.w);
+    state.h = parseInt(btn.dataset.h);
+    dom.dimW.value = state.w;
+    dom.dimH.value = state.h;
     applyDimensions();
   });
 });
 
-dimW.addEventListener("change", () => {
-  currentW = parseInt(dimW.value) || 1440;
+dom.dimW.addEventListener("change", () => {
+  state.w = parseInt(dom.dimW.value) || 1440;
   $$(".ratio-btn").forEach((b) => b.classList.remove("active"));
   applyDimensions();
 });
 
-dimH.addEventListener("change", () => {
-  currentH = parseInt(dimH.value) || 900;
+dom.dimH.addEventListener("change", () => {
+  state.h = parseInt(dom.dimH.value) || 900;
   $$(".ratio-btn").forEach((b) => b.classList.remove("active"));
   applyDimensions();
 });
 
 function applyDimensions() {
   const pad = window.innerWidth <= 768 ? 40 : 80;
-  const maxPreviewW = Math.min(900, window.innerWidth - pad);
-  const scale = Math.min(1, maxPreviewW / currentW);
+  const maxW = Math.min(900, window.innerWidth - pad);
+  const scale = Math.min(1, maxW / state.w);
 
-  // El contenedor visual tiene el tamaño escalado
-  frameBody.style.width = Math.round(currentW * scale) + "px";
-  frameBody.style.height = Math.round(currentH * scale) + "px";
+  dom.frameBody.style.width  = Math.round(state.w * scale) + "px";
+  dom.frameBody.style.height = Math.round(state.h * scale) + "px";
 
-  // El iframe se renderiza al tamaño real y se escala con CSS transform
-  frameIframe.style.width = currentW + "px";
-  frameIframe.style.height = currentH + "px";
-  frameIframe.style.transform = `scale(${scale})`;
-  frameIframe.style.transformOrigin = "top left";
+  // Iframe renders at real size, CSS-scaled to fit preview
+  dom.frameIframe.style.width  = state.w + "px";
+  dom.frameIframe.style.height = state.h + "px";
+  dom.frameIframe.style.transform = `scale(${scale})`;
+  dom.frameIframe.style.transformOrigin = "top left";
 }
 
 window.addEventListener("resize", applyDimensions);
 
-// ─── Multiplicador ──────────────────────────────────────
+// ─── Multiplier ─────────────────────────────────────────
 
 $$(".mult-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     $$(".mult-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    currentMult = parseInt(btn.dataset.mult);
+    state.mult = parseInt(btn.dataset.mult);
   });
 });
 
-// ─── Formato (PNG / WebP) + Calidad ─────────────────────
-
-const qualitySelect = $("#quality-select");
+// ─── Format & quality ───────────────────────────────────
 
 $$(".format-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     $$(".format-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    currentFormat = btn.dataset.format;
-    qualitySelect.disabled = currentFormat === "png";
+    state.format = btn.dataset.format;
+    dom.qualitySelect.disabled = state.format === "png";
   });
 });
 
-qualitySelect.addEventListener("change", () => {
-  currentQuality = parseFloat(qualitySelect.value);
+dom.qualitySelect.addEventListener("change", () => {
+  state.quality = parseFloat(dom.qualitySelect.value);
 });
 
-// ─── Extensión Chrome (captura real con hovers) ─────────
+// ─── Chrome Extension ───────────────────────────────────
 
-/**
- * Detecta si la extensión está instalada intentando comunicarse.
- * Prueba una lista de IDs conocidos.
- */
 async function detectExtension() {
-  // El ID se puede obtener de chrome://extensions después de instalar
-  // Intentar con IDs conocidos o buscar por broadcast
-  const knownIds = (window.__VISUALIZER_EXT_ID)
-    ? [window.__VISUALIZER_EXT_ID]
-    : [];
-
-  // Método universal: la extensión inyecta su ID en el DOM
+  // Content script injects extension ID into DOM
   const el = document.getElementById("visualizer-ext-id");
   if (el) {
-    extensionId = el.textContent.trim();
+    state.extensionId = el.textContent.trim();
+    updateExtBadge(true);
     return true;
   }
-
-  // Probar IDs conocidos
-  for (const id of knownIds) {
-    try {
-      const ok = await pingExtension(id);
-      if (ok) { extensionId = id; return true; }
-    } catch { /* next */ }
-  }
-
+  updateExtBadge(false);
   return false;
 }
 
-function pingExtension(id) {
-  return new Promise((resolve) => {
-    try {
-      chrome.runtime.sendMessage(id, { action: "captureTab" }, (resp) => {
-        resolve(resp && resp.dataUrl ? true : false);
-      });
-      setTimeout(() => resolve(false), 1000);
-    } catch { resolve(false); }
-  });
+function updateExtBadge(installed) {
+  if (dom.extStatus) {
+    dom.extStatus.textContent = installed
+      ? "extensión activa — capturas con hovers"
+      : "sin extensión — capturas via microlink";
+  }
 }
 
 /**
- * Captura la pestaña via extensión, recorta al iframe, devuelve HTMLImageElement.
+ * Capture visible tab via extension, crop to iframe, return HTMLImageElement.
  */
-async function captureViaExtension() {
-  if (!extensionId) return null;
+function captureViaExtension() {
+  if (!state.extensionId || typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+    return Promise.resolve(null);
+  }
 
   return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(null), 5000);
+
     try {
-      chrome.runtime.sendMessage(extensionId, { action: "captureTab" }, (resp) => {
-        if (!resp || !resp.dataUrl) { resolve(null); return; }
+      chrome.runtime.sendMessage(state.extensionId, { action: "captureTab" }, (resp) => {
+        clearTimeout(timeout);
+        if (!resp?.dataUrl) { resolve(null); return; }
 
         const fullImg = new Image();
         fullImg.onload = () => {
-          // Recortar al área del frameBody (contenido del iframe)
-          const rect = frameBody.getBoundingClientRect();
+          // Crop to frameBody area (iframe content only)
+          const rect = dom.frameBody.getBoundingClientRect();
           const dpr = window.devicePixelRatio || 1;
-          const cropX = Math.round(rect.left * dpr);
-          const cropY = Math.round(rect.top * dpr);
-          const cropW = Math.round(rect.width * dpr);
-          const cropH = Math.round(rect.height * dpr);
 
           const canvas = document.createElement("canvas");
-          canvas.width = currentW;
-          canvas.height = currentH;
+          canvas.width = state.w;
+          canvas.height = state.h;
           canvas.getContext("2d").drawImage(
-            fullImg, cropX, cropY, cropW, cropH,
-            0, 0, currentW, currentH
+            fullImg,
+            Math.round(rect.left * dpr), Math.round(rect.top * dpr),
+            Math.round(rect.width * dpr), Math.round(rect.height * dpr),
+            0, 0, state.w, state.h
           );
 
           const out = new Image();
@@ -379,103 +339,112 @@ async function captureViaExtension() {
           out.onerror = () => resolve(null);
           out.src = canvas.toDataURL();
         };
-        fullImg.onerror = () => resolve(null);
+        fullImg.onerror = () => { clearTimeout(timeout); resolve(null); };
         fullImg.src = resp.dataUrl;
       });
-
-      // Timeout 5s
-      setTimeout(() => resolve(null), 5000);
-    } catch { resolve(null); }
+    } catch {
+      clearTimeout(timeout);
+      resolve(null);
+    }
   });
 }
 
 // ─── Countdown ──────────────────────────────────────────
 
-const frameCountdown = $("#frame-countdown");
-
 function countdown(seconds) {
   return new Promise((resolve) => {
-    frameCountdown.classList.add("active");
-    frameCountdown.textContent = seconds;
+    dom.frameCountdown.classList.add("active");
+    dom.frameCountdown.textContent = seconds;
     let remaining = seconds;
     const tick = setInterval(() => {
       remaining--;
       if (remaining <= 0) {
         clearInterval(tick);
-        frameCountdown.classList.remove("active");
+        dom.frameCountdown.classList.remove("active");
+        dom.frameCountdown.textContent = "";
         resolve();
       } else {
-        frameCountdown.textContent = remaining;
+        dom.frameCountdown.textContent = remaining;
       }
     }, 1000);
   });
 }
 
-// ─── Descarga ───────────────────────────────────────────
+// ─── Hint helpers ───────────────────────────────────────
 
-downloadBtn.addEventListener("click", async () => {
-  downloadBtn.disabled = true;
-  const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
+function showHint(text) { dom.downloadHint.textContent = text; dom.downloadHint.hidden = false; }
+function hideHint() { dom.downloadHint.hidden = true; }
+
+// ─── Download ───────────────────────────────────────────
+
+dom.downloadBtn.addEventListener("click", async () => {
+  dom.downloadBtn.disabled = true;
+  const urlText = dom.urlInput.value.replace(/^https?:\/\//, "") || "";
 
   try {
-  if (currentMode === "iframe") {
-    // Countdown para posicionar hovers
-    await countdown(3);
-
-    downloadHint.textContent = "capturando...";
-    downloadHint.hidden = false;
-
-    let contentImage = null;
-
-    // 1. Intentar extensión Chrome (captura real con hovers)
-    if (extensionId) {
-      contentImage = await captureViaExtension();
+    if (state.mode === "iframe") {
+      await handleIframeDownload(urlText);
+    } else if (state.mode === "screenshot" && state.image) {
+      handleScrollableDownload(urlText);
+    } else if (state.image) {
+      doExport(state.image, urlText);
+      hideHint();
     }
-
-    // 2. Fallback: Microlink (sin hovers)
-    if (!contentImage) {
-      downloadHint.textContent = "capturando via microlink...";
-      const result = await loadScreenshot(urlInput.value, currentW, currentH, false);
-      if (result.image) contentImage = result.image;
-    }
-
-    // 3. Exportar con el frame bonito (sombra, titlebar, URL, navicon)
-    if (contentImage) {
-      exportImage(contentImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
-      downloadHint.hidden = true;
-    } else {
-      downloadHint.textContent = "error al capturar contenido";
-    }
-  } else if (currentMode === "screenshot" && loadedImage) {
-    // Screenshot scrollable: crop zona visible
-    const scrollTop = frameBody.scrollTop;
-    const visibleH = frameBody.clientHeight;
-    const imgDisplayW = frameImg.clientWidth;
-    const ratio = loadedImage.naturalWidth / imgDisplayW;
-
-    const crop = {
-      sx: 0,
-      sy: Math.round(scrollTop * ratio),
-      sw: loadedImage.naturalWidth,
-      sh: Math.round(visibleH * ratio),
-    };
-
-    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon, crop);
-    downloadHint.hidden = true;
-  } else if (loadedImage) {
-    // Imagen subida: exportar normal
-    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
-    downloadHint.hidden = true;
-  }
-
   } catch (e) {
-    downloadHint.textContent = `error: ${e.message || "fallo al capturar"}`;
-    downloadHint.hidden = false;
+    showHint(`error: ${e.message || "fallo al capturar"}`);
   }
 
-  downloadBtn.disabled = false;
+  dom.downloadBtn.disabled = false;
 });
+
+async function handleIframeDownload(urlText) {
+  await countdown(3);
+  showHint("capturando...");
+
+  let contentImage = null;
+
+  // 1. Extension (real capture with hovers)
+  if (state.extensionId) {
+    contentImage = await captureViaExtension();
+  }
+
+  // 2. Fallback: Microlink (no hovers)
+  if (!contentImage) {
+    showHint("capturando via microlink...");
+    const result = await loadScreenshot(dom.urlInput.value, state.w, state.h, false);
+    if (result.image) contentImage = result.image;
+  }
+
+  if (contentImage) {
+    doExport(contentImage, urlText);
+    hideHint();
+  } else {
+    showHint("error al capturar contenido");
+  }
+}
+
+function handleScrollableDownload(urlText) {
+  const scrollTop = dom.frameBody.scrollTop;
+  const visibleH = dom.frameBody.clientHeight;
+  const ratio = state.image.naturalWidth / dom.frameImg.clientWidth;
+
+  const crop = {
+    sx: 0,
+    sy: Math.round(scrollTop * ratio),
+    sw: state.image.naturalWidth,
+    sh: Math.round(visibleH * ratio),
+  };
+
+  doExport(state.image, urlText, crop);
+  hideHint();
+}
+
+function doExport(image, urlText, crop) {
+  exportImage(image, state.style, state.mult, dom.shadowToggle.checked,
+    urlText, state.format, state.quality, state.navicon, crop);
+}
 
 // ─── Init ───────────────────────────────────────────────
 
 applyDimensions();
+detectExtension();

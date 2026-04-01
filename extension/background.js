@@ -1,20 +1,24 @@
 /**
- * background.js
- * Visualizer Screenshot Extension
- * Captura la pestaña actual y devuelve la imagen como dataURL.
+ * background.js — Visualizer Screenshot Extension
+ * Captures the visible tab and returns it as a dataURL.
  */
 
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  if (message.action !== "captureTab") return;
+  const { action } = message || {};
 
-  chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
-    if (chrome.runtime.lastError) {
-      sendResponse({ error: chrome.runtime.lastError.message });
-    } else {
-      sendResponse({ dataUrl });
-    }
-  });
+  if (action === "ping") {
+    sendResponse({ pong: true, version: chrome.runtime.getManifest().version });
+    return;
+  }
 
-  // true = respuesta asíncrona
-  return true;
+  if (action === "captureTab") {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ dataUrl });
+      }
+    });
+    return true; // async response
+  }
 });

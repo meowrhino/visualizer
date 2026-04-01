@@ -1,14 +1,11 @@
 /**
- * source.js
- * Carga de contenido: URLs via iframe, microlink.io screenshots, y subida de imágenes.
+ * source.js — Loading content: URLs via iframe/microlink, image upload.
  */
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+
 /**
- * Intenta cargar una URL en un iframe. Detecta bloqueo via timeout.
- * @param {HTMLIFrameElement} iframe
- * @param {string} rawUrl
- * @param {number} timeoutMs — ms antes de considerar fallido (default 3000)
- * @returns {Promise<boolean>} — true si cargo, false si bloqueado/error
+ * Try loading a URL in an iframe. Returns true if loaded, false if blocked.
  */
 export function loadIframe(iframe, rawUrl, timeoutMs = 3000) {
   let url = rawUrl.trim();
@@ -16,57 +13,32 @@ export function loadIframe(iframe, rawUrl, timeoutMs = 3000) {
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 
   return new Promise((resolve) => {
-    let resolved = false;
-    const done = (ok) => { if (!resolved) { resolved = true; resolve(ok); } };
+    let done = false;
+    const finish = (ok) => { if (!done) { done = true; resolve(ok); } };
 
     const timer = setTimeout(() => {
-      // Timeout: verificar si el iframe cargo algo accesible
       try {
-        // Si podemos acceder al contentDocument, cargo correctamente
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (doc && doc.body && doc.body.innerHTML.length > 0) {
-          done(true);
-        } else {
-          done(false);
-        }
-      } catch {
-        // Cross-origin: el iframe cargo pero no podemos leerlo → éxito
-        done(true);
-      }
+        iframe.contentDocument; // cross-origin = success (loaded but can't read)
+        finish(false);          // same-origin empty = fail
+      } catch { finish(true); } // cross-origin = loaded OK
     }, timeoutMs);
 
     iframe.onload = () => {
       clearTimeout(timer);
       try {
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        // Si es una pagina de error vacia o about:blank
-        if (doc && doc.body && doc.body.innerHTML.length === 0) {
-          done(false);
-        } else {
-          done(true);
-        }
-      } catch {
-        // Cross-origin load → éxito
-        done(true);
-      }
+        const doc = iframe.contentDocument;
+        finish(doc?.body?.innerHTML.length > 0);
+      } catch { finish(true); } // cross-origin = loaded OK
     };
 
-    iframe.onerror = () => {
-      clearTimeout(timer);
-      done(false);
-    };
-
+    iframe.onerror = () => { clearTimeout(timer); finish(false); };
     iframe.src = url;
   });
 }
 
 /**
- * Carga un screenshot full-page de una URL usando microlink.io.
- * @param {string} rawUrl
- * @param {number} viewportW
- * @param {number} viewportH
- * @param {boolean} fullPage — si true, captura toda la pagina (scrollable)
- * @returns {Promise<{image: HTMLImageElement|null, canExport: boolean, error: string|null}>}
+ * Capture a screenshot via microlink.io API.
+ * @param {boolean} fullPage - Capture entire page (for scrollable mode)
  */
 export async function loadScreenshot(rawUrl, viewportW, viewportH, fullPage = false) {
   let url = rawUrl.trim();
@@ -84,48 +56,46 @@ export async function loadScreenshot(rawUrl, viewportW, viewportH, fullPage = fa
   });
   if (fullPage) params.set("screenshot.fullPage", "true");
 
-  const apiUrl = `https://api.microlink.io?${params}`;
-
   try {
-    const res = await fetch(apiUrl);
+    const res = await fetch(`https://api.microlink.io?${params}`);
     const json = await res.json();
 
     if (json.status !== "success" || !json.data?.screenshot?.url) {
-      const msg = json.message || json.status || "error desconocido";
-      return { image: null, canExport: false, error: msg };
+      return { image: null, canExport: false, error: json.message || json.status || "error desconocido" };
     }
 
-    const screenshotUrl = json.data.screenshot.url;
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => resolve({ image: img, canExport: true, error: null });
-      img.onerror = () => resolve({ image: null, canExport: false, error: "no se pudo cargar la imagen" });
-      img.src = screenshotUrl;
-    });
+    return loadImageFromUrl(json.data.screenshot.url);
   } catch (e) {
     return { image: null, canExport: false, error: e.message || "error de red" };
   }
 }
 
 /**
- * Lee un archivo de imagen del sistema y lo devuelve como HTMLImageElement.
- * @param {File} file
- * @returns {Promise<HTMLImageElement>}
+ * Load an image from a URL with CORS.
+ */
+function loadImageFromUrl(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve({ image: img, canExport: true, error: null });
+    img.onerror = () => resolve({ image: null, canExport: false, error: "no se pudo cargar la imagen" });
+    img.src = url;
+  });
+}
+
+/**
+ * Load a local image file. Uses createObjectURL (more efficient than dataURL).
  */
 export function loadImageFile(file) {
-  if (file.size > 20 * 1024 * 1024) {
+  if (file.size > MAX_FILE_SIZE) {
     return Promise.reject(new Error("imagen demasiado grande (max 20 MB)"));
   }
+
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("no se pudo leer la imagen")); };
+    img.src = url;
   });
 }
