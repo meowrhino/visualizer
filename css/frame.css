@@ -129,6 +129,11 @@
   display: flex;
 }
 
+@media (max-width: 768px) {
+  .preview-area { padding: 1rem 0; }
+  .frame-empty { min-height: 120px; font-size: 0.75rem; }
+}
+
 .frame-empty {
   display: flex;
   align-items: center;

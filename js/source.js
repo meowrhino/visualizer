@@ -114,6 +114,9 @@ export async function loadScreenshot(rawUrl, viewportW, viewportH, fullPage = fa
  * @returns {Promise<HTMLImageElement>}
  */
 export function loadImageFile(file) {
+  if (file.size > 20 * 1024 * 1024) {
+    return Promise.reject(new Error("imagen demasiado grande (max 20 MB)"));
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {

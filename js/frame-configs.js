@@ -76,5 +76,5 @@ export function getFrameConfig(style, imgW, imgH) {
     },
   };
 
-  return configs[style];
+  return configs[style] || configs.windows;
 }

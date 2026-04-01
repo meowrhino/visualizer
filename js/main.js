@@ -251,7 +251,8 @@ dimH.addEventListener("change", () => {
 });
 
 function applyDimensions() {
-  const maxPreviewW = Math.min(900, window.innerWidth - 80);
+  const pad = window.innerWidth <= 768 ? 40 : 80;
+  const maxPreviewW = Math.min(900, window.innerWidth - pad);
   const scale = Math.min(1, maxPreviewW / currentW);
 
   // El contenedor visual tiene el tamaño escalado
@@ -264,6 +265,8 @@ function applyDimensions() {
   frameIframe.style.transform = `scale(${scale})`;
   frameIframe.style.transformOrigin = "top left";
 }
+
+window.addEventListener("resize", applyDimensions);
 
 // ─── Multiplicador ──────────────────────────────────────
 
