@@ -87,11 +87,26 @@
   background: #fff;
 }
 
+.frame-body.scrollable {
+  overflow-y: auto;
+}
+
 .frame-body img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.frame-body.scrollable img {
+  height: auto;
+  object-fit: contain;
+}
+
+.frame-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
 }
 
 .frame-empty {

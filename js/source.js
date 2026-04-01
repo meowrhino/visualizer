@@ -1,18 +1,74 @@
 /**
  * source.js
- * Carga de contenido: URLs via microlink.io y subida de imágenes (drag & drop / file input).
+ * Carga de contenido: URLs via iframe, microlink.io screenshots, y subida de imágenes.
  */
 
 /**
- * Carga un screenshot de una URL usando microlink.io (gratis, sin API key, con CORS).
- * Devuelve la imagen y si es exportable via canvas.
- *
- * @param {string} rawUrl — URL introducida por el usuario
- * @param {number} viewportW — ancho del viewport para la captura
- * @param {number} viewportH — alto del viewport para la captura
- * @returns {Promise<{image: HTMLImageElement|null, canExport: boolean}>}
+ * Intenta cargar una URL en un iframe. Detecta bloqueo via timeout.
+ * @param {HTMLIFrameElement} iframe
+ * @param {string} rawUrl
+ * @param {number} timeoutMs — ms antes de considerar fallido (default 3000)
+ * @returns {Promise<boolean>} — true si cargo, false si bloqueado/error
  */
-export async function loadScreenshot(rawUrl, viewportW, viewportH) {
+export function loadIframe(iframe, rawUrl, timeoutMs = 3000) {
+  let url = rawUrl.trim();
+  if (!url) return Promise.resolve(false);
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const done = (ok) => { if (!resolved) { resolved = true; resolve(ok); } };
+
+    const timer = setTimeout(() => {
+      // Timeout: verificar si el iframe cargo algo accesible
+      try {
+        // Si podemos acceder al contentDocument, cargo correctamente
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc && doc.body && doc.body.innerHTML.length > 0) {
+          done(true);
+        } else {
+          done(false);
+        }
+      } catch {
+        // Cross-origin: el iframe cargo pero no podemos leerlo → éxito
+        done(true);
+      }
+    }, timeoutMs);
+
+    iframe.onload = () => {
+      clearTimeout(timer);
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        // Si es una pagina de error vacia o about:blank
+        if (doc && doc.body && doc.body.innerHTML.length === 0) {
+          done(false);
+        } else {
+          done(true);
+        }
+      } catch {
+        // Cross-origin load → éxito
+        done(true);
+      }
+    };
+
+    iframe.onerror = () => {
+      clearTimeout(timer);
+      done(false);
+    };
+
+    iframe.src = url;
+  });
+}
+
+/**
+ * Carga un screenshot full-page de una URL usando microlink.io.
+ * @param {string} rawUrl
+ * @param {number} viewportW
+ * @param {number} viewportH
+ * @param {boolean} fullPage — si true, captura toda la pagina (scrollable)
+ * @returns {Promise<{image: HTMLImageElement|null, canExport: boolean, error: string|null}>}
+ */
+export async function loadScreenshot(rawUrl, viewportW, viewportH, fullPage = false) {
   let url = rawUrl.trim();
   if (!url) return { image: null, canExport: false, error: null };
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
@@ -26,6 +82,8 @@ export async function loadScreenshot(rawUrl, viewportW, viewportH) {
     "viewport.deviceScaleFactor": 1,
     waitForTimeout: 8000,
   });
+  if (fullPage) params.set("screenshot.fullPage", "true");
+
   const apiUrl = `https://api.microlink.io?${params}`;
 
   try {

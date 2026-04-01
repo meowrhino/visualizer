@@ -4,7 +4,7 @@
  * Orquesta controles, estado global, y conecta los módulos.
  */
 
-import { loadScreenshot, loadImageFile } from "./source.js";
+import { loadIframe, loadScreenshot, loadImageFile } from "./source.js";
 import { exportImage } from "./export.js";
 
 // ─── Helpers DOM ────────────────────────────────────────
@@ -17,6 +17,7 @@ const $$ = (s) => document.querySelectorAll(s);
 let currentStyle = "windows";
 let loadedImage = null;   // HTMLImageElement o null
 let loadedNavicon = null; // HTMLImageElement o null (favicon del sitio)
+let currentMode = "empty"; // "empty" | "iframe" | "screenshot" | "image"
 let currentW = 1440;
 let currentH = 900;
 let currentMult = 1;
@@ -28,6 +29,7 @@ let currentQuality = 0.85;
 const frameContainer = $("#frame-container");
 const frameBody = $("#frame-body");
 const frameImg = $("#frame-img");
+const frameIframe = $("#frame-iframe");
 const frameEmpty = $("#frame-empty");
 const frameUrl = $("#frame-url");
 const urlInput = $("#url-input");
@@ -66,7 +68,35 @@ $$(".source-tab").forEach((tab) => {
   });
 });
 
-// ─── Carga de URL (microlink.io) ────────────────────────
+// ─── Helpers de modo ────────────────────────────────────
+
+function showIframe() {
+  frameIframe.hidden = false;
+  frameImg.hidden = true;
+  frameEmpty.hidden = true;
+  frameBody.classList.remove("scrollable");
+  currentMode = "iframe";
+}
+
+function showScreenshot() {
+  frameIframe.hidden = true;
+  frameIframe.src = "";
+  frameImg.hidden = false;
+  frameEmpty.hidden = true;
+  frameBody.classList.add("scrollable");
+  currentMode = "screenshot";
+}
+
+function showImage() {
+  frameIframe.hidden = true;
+  frameIframe.src = "";
+  frameImg.hidden = false;
+  frameEmpty.hidden = true;
+  frameBody.classList.remove("scrollable");
+  currentMode = "image";
+}
+
+// ─── Carga de URL (iframe + fallback screenshot) ────────
 
 $("#load-url-btn").addEventListener("click", handleLoadURL);
 urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleLoadURL(); });
@@ -82,25 +112,41 @@ async function handleLoadURL() {
 
   // Preparar UI
   loadedImage = null;
-  frameEmpty.hidden = true;
-  frameImg.hidden = false;
   frameUrl.textContent = url.replace(/^https?:\/\//, "");
   downloadBtn.disabled = true;
-  downloadHint.textContent = "capturando...";
+  downloadHint.textContent = "cargando...";
   downloadHint.hidden = false;
 
   // Cargar favicon del sitio
   loadNavicon(url);
+  applyDimensions();
 
-  // Capturar screenshot
-  const { image, canExport, error } = await loadScreenshot(url, currentW, currentH);
+  // 1. Intentar iframe
+  showIframe();
+  const iframeOk = await loadIframe(frameIframe, url);
+
+  if (iframeOk) {
+    // Iframe funciona — el usuario puede navegar
+    downloadBtn.disabled = false;
+    downloadHint.textContent = "navega y luego descarga";
+    downloadHint.hidden = false;
+    applyShadow();
+    return;
+  }
+
+  // 2. Fallback: screenshot full-page (scrollable)
+  downloadHint.textContent = "iframe bloqueado, capturando screenshot...";
+  showScreenshot();
+
+  const { image, canExport, error } = await loadScreenshot(url, currentW, currentH, true);
 
   if (image) {
     frameImg.src = image.src;
     if (canExport) {
       loadedImage = image;
       downloadBtn.disabled = false;
-      downloadHint.hidden = true;
+      downloadHint.textContent = "haz scroll para elegir zona";
+      downloadHint.hidden = false;
     } else {
       downloadHint.textContent = "usa ⌘⇧4 para capturar el frame";
     }
@@ -108,7 +154,6 @@ async function handleLoadURL() {
     downloadHint.textContent = error ? `error: ${error}` : "error al capturar — prueba otra URL";
   }
 
-  applyDimensions();
   applyShadow();
 }
 
@@ -131,8 +176,7 @@ async function handleImageFile(file) {
   const img = await loadImageFile(file);
   loadedImage = img;
   frameImg.src = img.src;
-  frameImg.hidden = false;
-  frameEmpty.hidden = true;
+  showImage();
   frameUrl.textContent = file.name;
   fileNameEl.textContent = file.name;
   downloadBtn.disabled = false;
@@ -242,9 +286,42 @@ qualitySelect.addEventListener("change", () => {
 
 // ─── Descarga ───────────────────────────────────────────
 
-downloadBtn.addEventListener("click", () => {
+downloadBtn.addEventListener("click", async () => {
   const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
-  exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
+
+  if (currentMode === "iframe") {
+    // Modo iframe: capturar via Microlink (no podemos leer iframe cross-origin)
+    downloadBtn.disabled = true;
+    downloadHint.textContent = "capturando vista actual...";
+    downloadHint.hidden = false;
+
+    const { image, canExport, error } = await loadScreenshot(urlInput.value, currentW, currentH, false);
+    if (image && canExport) {
+      exportImage(image, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
+    } else {
+      downloadHint.textContent = error ? `error: ${error}` : "error al capturar";
+    }
+    downloadBtn.disabled = false;
+  } else if (currentMode === "screenshot") {
+    // Modo screenshot scrollable: exportar zona visible (crop)
+    const scrollTop = frameBody.scrollTop;
+    const visibleH = frameBody.clientHeight;
+    const imgDisplayW = frameImg.clientWidth;
+    const imgNatW = loadedImage.naturalWidth;
+    const ratio = imgNatW / imgDisplayW;
+
+    const crop = {
+      sx: 0,
+      sy: Math.round(scrollTop * ratio),
+      sw: loadedImage.naturalWidth,
+      sh: Math.round(visibleH * ratio),
+    };
+
+    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon, crop);
+  } else {
+    // Modo imagen subida: exportar normal
+    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
+  }
 });
 
 // ─── Init ───────────────────────────────────────────────

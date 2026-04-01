@@ -21,12 +21,14 @@ const ctx = canvas.getContext("2d");
  * @param {"png"|"webp"} format — formato de exportación
  * @param {number} quality — calidad WebP (0.0 - 1.0)
  */
-export async function exportImage(image, style, mult, shadow, urlText, format, quality, navicon) {
+export async function exportImage(image, style, mult, shadow, urlText, format, quality, navicon, crop) {
   if (!image) return;
 
   const scale = mult;
-  const imgW = image.naturalWidth;
-  const imgH = image.naturalHeight;
+
+  // Si hay crop, usar las dimensiones del crop como tamaño de imagen
+  const imgW = crop ? crop.sw : image.naturalWidth;
+  const imgH = crop ? crop.sh : image.naturalHeight;
 
   const cfg = getFrameConfig(style, imgW, imgH);
   const useShadow = shadow && style !== "neu";
@@ -61,7 +63,7 @@ export async function exportImage(image, style, mult, shadow, urlText, format, q
     ctx.restore();
   }
 
-  drawFrame(ctx, ox, oy, cfg, image, urlText, navicon);
+  drawFrame(ctx, ox, oy, cfg, image, urlText, navicon, crop);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
