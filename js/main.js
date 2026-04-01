@@ -284,12 +284,37 @@ qualitySelect.addEventListener("change", () => {
   currentQuality = parseFloat(qualitySelect.value);
 });
 
+// ─── Countdown ──────────────────────────────────────────
+
+const frameCountdown = $("#frame-countdown");
+
+function countdown(seconds) {
+  return new Promise((resolve) => {
+    frameCountdown.classList.add("active");
+    frameCountdown.textContent = seconds;
+    let remaining = seconds;
+    const tick = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(tick);
+        frameCountdown.classList.remove("active");
+        resolve();
+      } else {
+        frameCountdown.textContent = remaining;
+      }
+    }, 1000);
+  });
+}
+
 // ─── Descarga ───────────────────────────────────────────
 
 downloadBtn.addEventListener("click", async () => {
   const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
 
   if (currentMode === "iframe") {
+    // Countdown para que el usuario posicione hovers
+    await countdown(3);
+
     // Modo iframe: capturar via Microlink (no podemos leer iframe cross-origin)
     downloadBtn.disabled = true;
     downloadHint.textContent = "capturando vista actual...";
