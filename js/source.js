@@ -24,6 +24,7 @@ export async function loadScreenshot(rawUrl, viewportW, viewportH) {
     "viewport.width": viewportW,
     "viewport.height": viewportH,
     "viewport.deviceScaleFactor": 1,
+    waitForTimeout: 8000,
   });
   const apiUrl = `https://api.microlink.io?${params}`;
 
