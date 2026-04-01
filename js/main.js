@@ -5,6 +5,7 @@
  */
 
 import { loadIframe, loadScreenshot, loadImageFile } from "./source.js";
+import { exportImage } from "./export.js";
 
 // ─── Helpers DOM ────────────────────────────────────────
 
@@ -319,71 +320,44 @@ function countdown(seconds) {
 // ─── Descarga ───────────────────────────────────────────
 
 downloadBtn.addEventListener("click", async () => {
+  downloadBtn.disabled = true;
+  const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
+
   if (currentMode === "iframe") {
     // Countdown para posicionar hovers
     await countdown(3);
-  }
 
-  downloadBtn.disabled = true;
-  downloadHint.textContent = "capturando...";
-  downloadHint.hidden = false;
+    downloadHint.textContent = "capturando contenido...";
+    downloadHint.hidden = false;
 
-  try {
-    // Si es iframe, obtener screenshot via Microlink y swap temporal
-    let swapped = false;
-    if (currentMode === "iframe") {
-      downloadHint.textContent = "capturando contenido...";
-      const { image } = await loadScreenshot(urlInput.value, currentW, currentH, false);
-      if (image) {
-        frameIframe.hidden = true;
-        frameImg.src = image.src;
-        frameImg.hidden = false;
-        frameImg.style.width = "100%";
-        frameImg.style.height = "100%";
-        frameImg.style.objectFit = "cover";
-        swapped = true;
-      }
-    }
-
-    downloadHint.textContent = "generando imagen...";
-
-    // Scale = tamaño real / tamaño preview * multiplicador
-    const previewW = frameBody.clientWidth;
-    const realScale = (currentW / previewW) * currentMult;
-
-    // Capturar el frame-container (titlebar real + contenido + sombra)
-    const canvas = await html2canvas(frameContainer, {
-      scale: realScale,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: null,
-    });
-
-    // Restaurar iframe si fue swapped
-    if (swapped) {
-      frameImg.hidden = true;
-      frameImg.style.width = "";
-      frameImg.style.height = "";
-      frameImg.style.objectFit = "";
-      frameIframe.hidden = false;
-    }
-
-    // Convertir y descargar
-    const mime = currentFormat === "webp" ? "image/webp" : "image/png";
-    const ext = currentFormat === "webp" ? "webp" : "png";
-    const quality = currentFormat === "webp" ? currentQuality : undefined;
-
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.download = `frame-${currentStyle}-${currentMult}x.${ext}`;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
+    // Obtener screenshot via Microlink + dibujar frame en canvas
+    const { image, error } = await loadScreenshot(urlInput.value, currentW, currentH, false);
+    if (image) {
+      exportImage(image, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
       downloadHint.hidden = true;
-    }, mime, quality);
-  } catch (e) {
-    downloadHint.textContent = `error: ${e.message}`;
+    } else {
+      downloadHint.textContent = error ? `error: ${error}` : "error al capturar";
+    }
+  } else if (currentMode === "screenshot" && loadedImage) {
+    // Screenshot scrollable: crop zona visible
+    const scrollTop = frameBody.scrollTop;
+    const visibleH = frameBody.clientHeight;
+    const imgDisplayW = frameImg.clientWidth;
+    const ratio = loadedImage.naturalWidth / imgDisplayW;
+
+    const crop = {
+      sx: 0,
+      sy: Math.round(scrollTop * ratio),
+      sw: loadedImage.naturalWidth,
+      sh: Math.round(visibleH * ratio),
+    };
+
+    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon, crop);
+    downloadHint.hidden = true;
+  } else if (loadedImage) {
+    // Imagen subida: exportar normal
+    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
+    downloadHint.hidden = true;
   }
 
   downloadBtn.disabled = false;
