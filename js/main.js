@@ -303,18 +303,35 @@ qualitySelect.addEventListener("change", () => {
 
 // ─── Screen Capture (captura real con hovers) ───────────
 
+let useCropAPI = false; // true si Region Capture API disponible
+
 async function initScreenCapture() {
-  if (captureStream) return true; // ya activo
+  if (captureStream) return true;
   try {
+    // Region Capture: recorta el stream al frame-container automáticamente
+    let cropTarget = null;
+    if ("CropTarget" in window) {
+      cropTarget = await CropTarget.fromElement(frameContainer);
+    }
+
     captureStream = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: "browser" },
       preferCurrentTab: true,
     });
-    // Si el usuario para de compartir, limpiar
-    captureStream.getVideoTracks()[0].onended = () => { captureStream = null; };
+
+    const track = captureStream.getVideoTracks()[0];
+    track.onended = () => { captureStream = null; useCropAPI = false; };
+
+    // Aplicar crop automático si disponible
+    if (cropTarget && track.cropTo) {
+      await track.cropTo(cropTarget);
+      useCropAPI = true;
+    }
+
     return true;
   } catch {
     captureStream = null;
+    useCropAPI = false;
     return false;
   }
 }
@@ -325,18 +342,17 @@ async function captureScreenFrame() {
   if (!track || track.readyState !== "live") { captureStream = null; return null; }
 
   try {
-    // Crear video element para extraer frame, con timeout de 3s
     const video = document.createElement("video");
     video.srcObject = captureStream;
     video.muted = true;
     video.playsInline = true;
 
+    // Esperar datos del video antes de play
     await Promise.race([
-      video.play(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
+      new Promise((r) => video.addEventListener("loadeddata", r, { once: true })),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000)),
     ]);
-
-    // Esperar 2 frames para asegurar que el video tiene datos
+    await video.play();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     if (!video.videoWidth || !video.videoHeight) {
@@ -344,33 +360,37 @@ async function captureScreenFrame() {
       return null;
     }
 
-    // Capturar frame en canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
+    // Capturar frame
+    const fullCanvas = document.createElement("canvas");
+    fullCanvas.width = video.videoWidth;
+    fullCanvas.height = video.videoHeight;
+    fullCanvas.getContext("2d").drawImage(video, 0, 0);
     video.pause();
     video.srcObject = null;
 
-    // Recortar al área del frame-container
-    const dpr = window.devicePixelRatio || 1;
+    if (useCropAPI) {
+      // Region Capture ya recortó al frame-container → escalar al multiplicador
+      const out = document.createElement("canvas");
+      out.width = Math.round(video.videoWidth * currentMult);
+      out.height = Math.round(video.videoHeight * currentMult);
+      out.getContext("2d").drawImage(fullCanvas, 0, 0, out.width, out.height);
+      return out;
+    }
+
+    // Fallback: crop manual con coordenadas corregidas
     const rect = frameContainer.getBoundingClientRect();
-    const scrollX = window.scrollX || 0;
-    const scrollY = window.scrollY || 0;
-    const cropX = Math.round((rect.left + scrollX) * dpr);
-    const cropY = Math.round((rect.top + scrollY) * dpr);
-    const cropW = Math.round(rect.width * dpr);
-    const cropH = Math.round(rect.height * dpr);
+    const scaleX = video.videoWidth / window.innerWidth;
+    const scaleY = video.videoHeight / window.innerHeight;
+    const cropX = Math.round(rect.left * scaleX);
+    const cropY = Math.round(rect.top * scaleY);
+    const cropW = Math.round(rect.width * scaleX);
+    const cropH = Math.round(rect.height * scaleY);
 
-    // Canvas final con el crop escalado al multiplicador
-    const finalCanvas = document.createElement("canvas");
-    finalCanvas.width = Math.round(cropW * currentMult / dpr);
-    finalCanvas.height = Math.round(cropH * currentMult / dpr);
-    const fCtx = finalCanvas.getContext("2d");
-    fCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, finalCanvas.width, finalCanvas.height);
-
-    return finalCanvas;
+    const out = document.createElement("canvas");
+    out.width = Math.round(rect.width * currentMult);
+    out.height = Math.round(rect.height * currentMult);
+    out.getContext("2d").drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, out.width, out.height);
+    return out;
   } catch {
     return null;
   }
