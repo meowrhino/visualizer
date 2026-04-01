@@ -253,8 +253,16 @@ dimH.addEventListener("change", () => {
 function applyDimensions() {
   const maxPreviewW = Math.min(900, window.innerWidth - 80);
   const scale = Math.min(1, maxPreviewW / currentW);
+
+  // El contenedor visual tiene el tamaño escalado
   frameBody.style.width = Math.round(currentW * scale) + "px";
   frameBody.style.height = Math.round(currentH * scale) + "px";
+
+  // El iframe se renderiza al tamaño real y se escala con CSS transform
+  frameIframe.style.width = currentW + "px";
+  frameIframe.style.height = currentH + "px";
+  frameIframe.style.transform = `scale(${scale})`;
+  frameIframe.style.transformOrigin = "top left";
 }
 
 // ─── Multiplicador ──────────────────────────────────────
