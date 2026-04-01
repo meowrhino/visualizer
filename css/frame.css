@@ -14,8 +14,6 @@
   flex-direction: column;
   transition: filter 0.3s;
   max-width: 100%;
-  /* Requerido para Region/Element Capture API */
-  contain: layout;
 }
 
 .frame-container.with-shadow {

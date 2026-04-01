@@ -301,42 +301,28 @@ qualitySelect.addEventListener("change", () => {
   currentQuality = parseFloat(qualitySelect.value);
 });
 
-// ─── Screen Capture (captura real con hovers) ───────────
-
-let useCropAPI = false; // true si Region Capture API disponible
+// ─── Screen Capture (captura contenido iframe con hovers) ─
 
 async function initScreenCapture() {
   if (captureStream) return true;
   try {
-    // Region Capture: recorta el stream al frame-container automáticamente
-    let cropTarget = null;
-    if ("CropTarget" in window) {
-      cropTarget = await CropTarget.fromElement(frameContainer);
-    }
-
     captureStream = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: "browser" },
       preferCurrentTab: true,
     });
-
-    const track = captureStream.getVideoTracks()[0];
-    track.onended = () => { captureStream = null; useCropAPI = false; };
-
-    // Aplicar crop automático si disponible
-    if (cropTarget && track.cropTo) {
-      await track.cropTo(cropTarget);
-      useCropAPI = true;
-    }
-
+    captureStream.getVideoTracks()[0].onended = () => { captureStream = null; };
     return true;
   } catch {
     captureStream = null;
-    useCropAPI = false;
     return false;
   }
 }
 
-async function captureScreenFrame() {
+/**
+ * Captura SOLO el contenido del iframe (lo que ve el usuario, con hovers).
+ * Devuelve un HTMLImageElement listo para pasar a exportImage().
+ */
+async function captureIframeContent() {
   if (!captureStream) return null;
   const track = captureStream.getVideoTracks()[0];
   if (!track || track.readyState !== "live") { captureStream = null; return null; }
@@ -347,7 +333,6 @@ async function captureScreenFrame() {
     video.muted = true;
     video.playsInline = true;
 
-    // Esperar datos del video antes de play
     await Promise.race([
       new Promise((r) => video.addEventListener("loadeddata", r, { once: true })),
       new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000)),
@@ -360,7 +345,7 @@ async function captureScreenFrame() {
       return null;
     }
 
-    // Capturar frame
+    // Capturar frame completo del tab
     const fullCanvas = document.createElement("canvas");
     fullCanvas.width = video.videoWidth;
     fullCanvas.height = video.videoHeight;
@@ -368,17 +353,8 @@ async function captureScreenFrame() {
     video.pause();
     video.srcObject = null;
 
-    if (useCropAPI) {
-      // Region Capture ya recortó al frame-container → escalar al multiplicador
-      const out = document.createElement("canvas");
-      out.width = Math.round(video.videoWidth * currentMult);
-      out.height = Math.round(video.videoHeight * currentMult);
-      out.getContext("2d").drawImage(fullCanvas, 0, 0, out.width, out.height);
-      return out;
-    }
-
-    // Fallback: crop manual con coordenadas corregidas
-    const rect = frameContainer.getBoundingClientRect();
+    // Recortar SOLO al área del iframe (frameBody), no del frame-container
+    const rect = frameBody.getBoundingClientRect();
     const scaleX = video.videoWidth / window.innerWidth;
     const scaleY = video.videoHeight / window.innerHeight;
     const cropX = Math.round(rect.left * scaleX);
@@ -386,11 +362,19 @@ async function captureScreenFrame() {
     const cropW = Math.round(rect.width * scaleX);
     const cropH = Math.round(rect.height * scaleY);
 
+    // Canvas con el contenido del iframe a tamaño real (currentW x currentH)
     const out = document.createElement("canvas");
-    out.width = Math.round(rect.width * currentMult);
-    out.height = Math.round(rect.height * currentMult);
-    out.getContext("2d").drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, out.width, out.height);
-    return out;
+    out.width = currentW;
+    out.height = currentH;
+    out.getContext("2d").drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, currentW, currentH);
+
+    // Convertir canvas a HTMLImageElement para exportImage()
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = out.toDataURL();
+    });
   } catch {
     return null;
   }
@@ -432,35 +416,26 @@ downloadBtn.addEventListener("click", async () => {
     downloadHint.textContent = "capturando...";
     downloadHint.hidden = false;
 
-    // Intentar Screen Capture (captura real con hovers)
+    let contentImage = null;
+
+    // 1. Intentar Screen Capture (captura real con hovers)
     if (captureStream) {
-      const canvas = await captureScreenFrame();
-      if (canvas) {
-        const mime = currentFormat === "webp" ? "image/webp" : "image/png";
-        const ext = currentFormat === "webp" ? "webp" : "png";
-        const quality = currentFormat === "webp" ? currentQuality : undefined;
-        canvas.toBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.download = `frame-${currentStyle}-${currentMult}x.${ext}`;
-          link.href = url;
-          link.click();
-          URL.revokeObjectURL(url);
-        }, mime, quality);
-        downloadHint.hidden = true;
-        downloadBtn.disabled = false;
-        return;
-      }
+      contentImage = await captureIframeContent();
     }
 
-    // Fallback: Microlink + canvas frame (sin hovers)
-    downloadHint.textContent = "capturando via microlink...";
-    const { image, error } = await loadScreenshot(urlInput.value, currentW, currentH, false);
-    if (image) {
-      exportImage(image, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
+    // 2. Fallback: Microlink (sin hovers)
+    if (!contentImage) {
+      downloadHint.textContent = "capturando via microlink...";
+      const result = await loadScreenshot(urlInput.value, currentW, currentH, false);
+      if (result.image) contentImage = result.image;
+    }
+
+    // 3. Exportar con el frame bonito (sombra, titlebar, URL, navicon)
+    if (contentImage) {
+      exportImage(contentImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
       downloadHint.hidden = true;
     } else {
-      downloadHint.textContent = error ? `error: ${error}` : "error al capturar";
+      downloadHint.textContent = "error al capturar contenido";
     }
   } else if (currentMode === "screenshot" && loadedImage) {
     // Screenshot scrollable: crop zona visible
