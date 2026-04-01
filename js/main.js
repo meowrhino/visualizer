@@ -5,7 +5,6 @@
  */
 
 import { loadIframe, loadScreenshot, loadImageFile } from "./source.js";
-import { exportImage } from "./export.js";
 
 // ─── Helpers DOM ────────────────────────────────────────
 
@@ -320,44 +319,47 @@ function countdown(seconds) {
 // ─── Descarga ───────────────────────────────────────────
 
 downloadBtn.addEventListener("click", async () => {
-  const urlText = urlInput.value.replace(/^https?:\/\//, "") || "";
-
   if (currentMode === "iframe") {
-    // Countdown para que el usuario posicione hovers
+    // Countdown para posicionar hovers
     await countdown(3);
-
-    // Modo iframe: capturar via Microlink (no podemos leer iframe cross-origin)
-    downloadBtn.disabled = true;
-    downloadHint.textContent = "capturando vista actual...";
-    downloadHint.hidden = false;
-
-    const { image, canExport, error } = await loadScreenshot(urlInput.value, currentW, currentH, false);
-    if (image && canExport) {
-      exportImage(image, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
-    } else {
-      downloadHint.textContent = error ? `error: ${error}` : "error al capturar";
-    }
-    downloadBtn.disabled = false;
-  } else if (currentMode === "screenshot") {
-    // Modo screenshot scrollable: exportar zona visible (crop)
-    const scrollTop = frameBody.scrollTop;
-    const visibleH = frameBody.clientHeight;
-    const imgDisplayW = frameImg.clientWidth;
-    const imgNatW = loadedImage.naturalWidth;
-    const ratio = imgNatW / imgDisplayW;
-
-    const crop = {
-      sx: 0,
-      sy: Math.round(scrollTop * ratio),
-      sw: loadedImage.naturalWidth,
-      sh: Math.round(visibleH * ratio),
-    };
-
-    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon, crop);
-  } else {
-    // Modo imagen subida: exportar normal
-    exportImage(loadedImage, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
   }
+
+  downloadBtn.disabled = true;
+  downloadHint.textContent = "capturando...";
+  downloadHint.hidden = false;
+
+  try {
+    // Scale = tamaño real / tamaño preview * multiplicador
+    const previewW = frameBody.clientWidth;
+    const realScale = (currentW / previewW) * currentMult;
+
+    // Capturar el frame-container tal cual se ve (WYSIWYG)
+    const canvas = await html2canvas(frameContainer, {
+      scale: realScale,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null, // fondo transparente para la sombra
+    });
+
+    // Convertir y descargar
+    const mime = currentFormat === "webp" ? "image/webp" : "image/png";
+    const ext = currentFormat === "webp" ? "webp" : "png";
+    const quality = currentFormat === "webp" ? currentQuality : undefined;
+
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `frame-${currentStyle}-${currentMult}x.${ext}`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      downloadHint.hidden = true;
+    }, mime, quality);
+  } catch (e) {
+    downloadHint.textContent = `error: ${e.message}`;
+  }
+
+  downloadBtn.disabled = false;
 });
 
 // ─── Init ───────────────────────────────────────────────
