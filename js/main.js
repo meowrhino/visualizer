@@ -23,6 +23,7 @@ let currentH = 900;
 let currentMult = 1;
 let currentFormat = "webp"; // "png" | "webp"
 let currentQuality = 0.85;
+let captureStream = null;  // MediaStream de Screen Capture API
 
 // ─── Refs DOM ───────────────────────────────────────────
 
@@ -126,9 +127,14 @@ async function handleLoadURL() {
   const iframeOk = await loadIframe(frameIframe, url);
 
   if (iframeOk) {
-    // Iframe funciona — el usuario puede navegar
+    // Iframe funciona — pedir Screen Capture para poder capturar hovers
     downloadBtn.disabled = false;
-    downloadHint.textContent = "navega y luego descarga";
+    if (!captureStream) {
+      downloadHint.textContent = "activa compartir pestaña para capturar hovers";
+      downloadHint.hidden = false;
+      await initScreenCapture();
+    }
+    downloadHint.textContent = captureStream ? "navega, haz hover y descarga" : "navega y descarga (sin hovers)";
     downloadHint.hidden = false;
     applyShadow();
     return;
@@ -295,6 +301,66 @@ qualitySelect.addEventListener("change", () => {
   currentQuality = parseFloat(qualitySelect.value);
 });
 
+// ─── Screen Capture (captura real con hovers) ───────────
+
+async function initScreenCapture() {
+  if (captureStream) return true; // ya activo
+  try {
+    captureStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: "browser" },
+      preferCurrentTab: true,
+    });
+    // Si el usuario para de compartir, limpiar
+    captureStream.getVideoTracks()[0].onended = () => { captureStream = null; };
+    return true;
+  } catch {
+    captureStream = null;
+    return false;
+  }
+}
+
+async function captureScreenFrame() {
+  if (!captureStream) return null;
+  const track = captureStream.getVideoTracks()[0];
+  if (!track || track.readyState !== "live") { captureStream = null; return null; }
+
+  // Crear video element para extraer frame
+  const video = document.createElement("video");
+  video.srcObject = captureStream;
+  video.muted = true;
+  await video.play();
+
+  // Esperar un frame
+  await new Promise((r) => requestAnimationFrame(r));
+
+  // Capturar frame en canvas
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
+  video.pause();
+  video.srcObject = null;
+
+  // Recortar al área del frame-container
+  const dpr = window.devicePixelRatio || 1;
+  const rect = frameContainer.getBoundingClientRect();
+  const cropX = Math.round(rect.left * dpr);
+  const cropY = Math.round(rect.top * dpr);
+  const cropW = Math.round(rect.width * dpr);
+  const cropH = Math.round(rect.height * dpr);
+
+  // Canvas final con el crop escalado al tamaño real * multiplicador
+  const scale = currentMult;
+  const finalCanvas = document.createElement("canvas");
+  finalCanvas.width = Math.round(cropW * scale / dpr);
+  finalCanvas.height = Math.round(cropH * scale / dpr);
+  const fCtx = finalCanvas.getContext("2d");
+  fCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, finalCanvas.width, finalCanvas.height);
+
+  return finalCanvas;
+}
+
 // ─── Countdown ──────────────────────────────────────────
 
 const frameCountdown = $("#frame-countdown");
@@ -327,10 +393,32 @@ downloadBtn.addEventListener("click", async () => {
     // Countdown para posicionar hovers
     await countdown(3);
 
-    downloadHint.textContent = "capturando contenido...";
+    downloadHint.textContent = "capturando...";
     downloadHint.hidden = false;
 
-    // Obtener screenshot via Microlink + dibujar frame en canvas
+    // Intentar Screen Capture (captura real con hovers)
+    if (captureStream) {
+      const canvas = await captureScreenFrame();
+      if (canvas) {
+        const mime = currentFormat === "webp" ? "image/webp" : "image/png";
+        const ext = currentFormat === "webp" ? "webp" : "png";
+        const quality = currentFormat === "webp" ? currentQuality : undefined;
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.download = `frame-${currentStyle}-${currentMult}x.${ext}`;
+          link.href = url;
+          link.click();
+          URL.revokeObjectURL(url);
+          downloadHint.hidden = true;
+        }, mime, quality);
+        downloadBtn.disabled = false;
+        return;
+      }
+    }
+
+    // Fallback: Microlink + canvas frame (sin hovers)
+    downloadHint.textContent = "capturando via microlink...";
     const { image, error } = await loadScreenshot(urlInput.value, currentW, currentH, false);
     if (image) {
       exportImage(image, currentStyle, currentMult, shadowToggle.checked, urlText, currentFormat, currentQuality, loadedNavicon);
