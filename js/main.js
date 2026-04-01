@@ -329,17 +329,44 @@ downloadBtn.addEventListener("click", async () => {
   downloadHint.hidden = false;
 
   try {
+    // Si es iframe, obtener screenshot via Microlink y swap temporal
+    let swapped = false;
+    if (currentMode === "iframe") {
+      downloadHint.textContent = "capturando contenido...";
+      const { image } = await loadScreenshot(urlInput.value, currentW, currentH, false);
+      if (image) {
+        frameIframe.hidden = true;
+        frameImg.src = image.src;
+        frameImg.hidden = false;
+        frameImg.style.width = "100%";
+        frameImg.style.height = "100%";
+        frameImg.style.objectFit = "cover";
+        swapped = true;
+      }
+    }
+
+    downloadHint.textContent = "generando imagen...";
+
     // Scale = tamaño real / tamaño preview * multiplicador
     const previewW = frameBody.clientWidth;
     const realScale = (currentW / previewW) * currentMult;
 
-    // Capturar el frame-container tal cual se ve (WYSIWYG)
+    // Capturar el frame-container (titlebar real + contenido + sombra)
     const canvas = await html2canvas(frameContainer, {
       scale: realScale,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: null, // fondo transparente para la sombra
+      backgroundColor: null,
     });
+
+    // Restaurar iframe si fue swapped
+    if (swapped) {
+      frameImg.hidden = true;
+      frameImg.style.width = "";
+      frameImg.style.height = "";
+      frameImg.style.objectFit = "";
+      frameIframe.hidden = false;
+    }
 
     // Convertir y descargar
     const mime = currentFormat === "webp" ? "image/webp" : "image/png";
