@@ -13,83 +13,32 @@
   <link rel="icon" href="favicon/favicon.ico">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/controls.css">
-  <link rel="stylesheet" href="css/frame.css">
-  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>visualizer</h1>
-    <p class="subtitle">browser frame screenshots for your portfolio</p>
-  </header>
-
   <main>
-    <!-- Controls -->
     <section class="controls">
-      <div class="control-row">
-        <label>estilo</label>
-        <div class="toggle-group">
-          <button class="toggle-btn active" data-style="windows">Windows</button>
-          <button class="toggle-btn" data-style="macos">macOS</button>
-          <button class="toggle-btn" data-style="glass">Glass</button>
-          <button class="toggle-btn" data-style="pixel">Pixel</button>
-          <button class="toggle-btn" data-style="dots">Dots</button>
-          <button class="toggle-btn" data-style="gx">GX</button>
-          <button class="toggle-btn" data-style="neu">Neu</button>
-          <button class="toggle-btn" data-style="dia">Dia</button>
-        </div>
-      </div>
-
-      <div class="control-row">
+      <div class="control-row source-row">
         <label>fuente</label>
         <div class="source-controls">
-          <div class="toggle-group">
-            <button class="toggle-btn source-tab active" data-source="url">URL</button>
-            <button class="toggle-btn source-tab" data-source="image">imagen</button>
+          <div class="meta-url-row">
+            <input type="url" id="url-input" placeholder="url para titulo y favicon (opcional)" autocomplete="off">
+            <button id="load-meta-btn" class="btn-secondary btn-sm">cargar info</button>
           </div>
-          <div class="source-url" id="source-url">
-            <input type="url" id="url-input" placeholder="https://ejemplo.com" autocomplete="off">
-            <button id="load-url-btn" class="btn-primary btn-sm">cargar</button>
+          <div class="drop-zone" id="drop-zone">
+            <span class="drop-zone-text">pega una captura <kbd>Cmd+V</kbd> o arrastra imágenes</span>
+            <input type="file" id="file-input" accept="image/*" multiple hidden>
           </div>
-          <div class="source-image" id="source-image" hidden>
-            <div class="drop-zone" id="drop-zone">
-              <span>+ arrastra imagen o click</span>
-              <input type="file" id="file-input" accept="image/*" hidden>
-            </div>
-            <span class="file-name" id="file-name"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="control-row">
-        <label>tamaño</label>
-        <div class="size-controls">
-          <div class="toggle-group">
-            <button class="toggle-btn ratio-btn active" data-w="1440" data-h="900">16:10</button>
-            <button class="toggle-btn ratio-btn" data-w="1920" data-h="1080">16:9</button>
-            <button class="toggle-btn ratio-btn" data-w="1440" data-h="960">3:2</button>
-            <button class="toggle-btn ratio-btn" data-w="1024" data-h="768">4:3</button>
-            <button class="toggle-btn ratio-btn" data-w="768" data-h="1024">3:4</button>
-            <button class="toggle-btn ratio-btn" data-w="375" data-h="667">9:16+</button>
-            <button class="toggle-btn ratio-btn" data-w="360" data-h="640">9:16</button>
-          </div>
-          <div class="size-inputs">
-            <input type="number" id="dim-w" value="1440" min="200" max="3840"> <span class="times">×</span>
-            <input type="number" id="dim-h" value="900" min="200" max="3840">
-            <div class="toggle-group">
-              <button class="toggle-btn mult-btn active" data-mult="1">1x</button>
-              <button class="toggle-btn mult-btn" data-mult="2">2x</button>
-              <button class="toggle-btn mult-btn" data-mult="3">3x</button>
-            </div>
-          </div>
+          <span class="file-name" id="file-name"></span>
         </div>
       </div>
 
       <div class="control-row bottom-row">
-        <label class="check-label">
-          <input type="checkbox" id="shadow-toggle" checked>
-          sombra
-        </label>
-        <div class="download-area">
+        <div class="left-controls">
+          <label class="check-label">
+            <input type="checkbox" id="shadow-toggle" checked>
+            sombra
+          </label>
           <div class="format-controls">
             <div class="toggle-group">
               <button class="toggle-btn format-btn" data-format="png">PNG</button>
@@ -104,75 +53,24 @@
               <option value="1.00">100%</option>
             </select>
           </div>
-          <span class="download-hint" id="download-hint" hidden></span>
-          <button id="download-btn" class="btn-primary" disabled>descargar</button>
         </div>
+        <span class="download-hint" id="download-hint" hidden></span>
       </div>
     </section>
 
-    <!-- Preview -->
-    <section class="preview-area" id="preview-area">
-      <div class="frame-container" id="frame-container" data-style="windows">
-        <div class="frame-titlebar" id="frame-titlebar">
-          <img class="frame-navicon" id="frame-navicon" alt="">
-          <div class="frame-dots">
-            <span class="dot red"></span>
-            <span class="dot yellow"></span>
-            <span class="dot green"></span>
-          </div>
-          <span class="frame-url" id="frame-url"></span>
-          <div class="frame-controls" id="frame-controls">
-            <span class="win-minimize">&#x2015;</span>
-            <span class="win-maximize">☐</span>
-            <span class="frame-close">&times;</span>
-          </div>
-        </div>
-        <div class="frame-body" id="frame-body">
-          <div class="frame-empty" id="frame-empty">
-            <p>introduce una URL o sube una imagen</p>
-          </div>
-          <img id="frame-img" hidden alt="preview">
-          <iframe id="frame-iframe" class="frame-iframe" hidden title="preview"></iframe>
-          <div class="frame-countdown" id="frame-countdown"></div>
-        </div>
+    <!-- Results grid -->
+    <section class="results" id="results" hidden>
+      <div class="results-header">
+        <span class="results-count" id="results-count"></span>
+        <button class="btn-primary btn-sm" id="download-all-btn">descargar todo (.zip)</button>
       </div>
-    </section>
-
-    <!-- Extension info -->
-    <section class="extension-info" id="extension-info">
-      <div class="ext-badge" id="ext-badge">
-        <span class="ext-status" id="ext-status"></span>
-      </div>
-      <details class="ext-details">
-        <summary>sobre la captura de pantalla</summary>
-        <div class="ext-content">
-          <p>
-            <strong>sin extensión</strong> — las capturas se hacen via
-            <a href="https://microlink.io" target="_blank" rel="noopener">microlink.io</a>
-            (screenshot remoto). funciona siempre pero no captura hovers ni estados interactivos.
-          </p>
-          <p>
-            <strong>con extensión</strong> — captura exactamente lo que ves en pantalla,
-            incluyendo hovers, menús abiertos, animaciones. tienes 3 segundos de cuenta atrás
-            para posicionar el ratón antes de la captura.
-          </p>
-          <h4>instalar la extensión</h4>
-          <ol>
-            <li>descarga la <a href="extension/" id="ext-download-link">carpeta extension/</a> del repositorio</li>
-            <li>abre <code>chrome://extensions</code> en chrome o brave</li>
-            <li>activa <strong>modo desarrollador</strong> (arriba a la derecha)</li>
-            <li>click en <strong>cargar descomprimida</strong></li>
-            <li>selecciona la carpeta <code>extension/</code></li>
-            <li>recarga esta página</li>
-          </ol>
-          <p class="ext-note">
-            compatible con chrome, brave, edge, opera, arc y cualquier navegador chromium.
-            <a href="https://github.com/meowrhino/visualizer" target="_blank" rel="noopener">código fuente</a> — 100% libre y abierto.
-          </p>
-        </div>
-      </details>
+      <div class="results-grid" id="results-grid"></div>
     </section>
   </main>
+
+  <footer>
+    <a href="https://meowrhino.studio" target="_blank" rel="noopener">meowrhino.studio</a>
+  </footer>
 
   <canvas id="export-canvas" hidden></canvas>
   <script type="module" src="js/main.js"></script>
